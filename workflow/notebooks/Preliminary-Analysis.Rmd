@@ -60,7 +60,7 @@ samples = read_csv(preprint.filepath)
 # Bioproject samples from Run Selector
 bioproject = read_csv(runselector.filepath)
 # Join the data-frames by 'Isolate' (derived from Strain)
-combined_samples = left_join(samples, bioproject, by="Isolate") %>% select(Strain = "Strain.x", Isolate, Run, Bases)
+combined_samples = left_join(samples, bioproject, by="Isolate") %>% select(Strain = "Strain.x", Isolate, Run, LibraryLayout)
 # From manual inspection, some samples are missing from the Bioproject
 missing_samples = combined_samples %>% filter(is.na(Run))
 # Samples that aren't missing
