@@ -55,8 +55,9 @@ rule star_align:
 rule samtools_filter:
     """ Filter reads that mapped to either virus or host from `STAR` and `BWA`. 
     """
-    input: join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.bam")
-    output: join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.{organism}.bam")
+    input: join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.bam"),
+    output: bam=join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.{organism}.bam"),
+            index=join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.{organism}.bam.bai")
     params: 
         invert=lambda wildcards: "true" if (wildcards.organism != "virus") else "false",
         contig=lambda wildcards: config[pd.read_csv(config['samples']['file']).set_index('Run').at[wildcards.accession, 'Virus']]['contig']
@@ -69,21 +70,24 @@ rule samtools_filter:
 
             samtools view {input} \
                 | awk '$3!= "{params.contig}"' \
-                >> {output} 
+                >> {output.bam} 
 
-            samtools sort {output} -o {output}
+            samtools sort {output.bam} -o {output.bam}
+            samtools index {output.bam}
 
         else
 
             samtools view {input} \
                 | awk '$3== "{params.contig}"' \
-                >> {output} 
+                >> {output.bam} 
 
-            samtools sort {output} -o {output}
+            samtools sort {output.bam} -o {output.bam}
+            samtools index {output.bam}
 
         fi
         """
-        
+
+     
 rule remove_duplicates:
     """ This rule uses `Picard` to mark/remove probable PCR duplicates.
     """
@@ -102,7 +106,7 @@ rule remove_duplicates:
 rule index_bam:
     """ Sort and index mapped reads from `STAR` and `BWA`. 
     """
-    input: join(config['dedup_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.{organism}.bam")
+    input: join(config['dedup_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.{organism}.bam"),
     output: join(config['dedup_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.{organism}.bam.bai")
     conda: '../envs/samtools.yml'
     shell:

@@ -6,8 +6,8 @@ rule varscan_calling:
     input: 
         varscan=join(config['tools'], "VarScan.v2.4.0.jar"),
         genome=get_genome,
-        bam=join(config['dedup_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.bam"),
-        bam_index=join(config['dedup_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.bam.bai")
+        bam=join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.bam"),
+        bam_index=join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.bam.bai")
     output: join(config['variant_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.varscan.vcf")
     params:
         tmp_snp=temp(join(config['variant_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.varscan.snp.vcf")),
@@ -53,8 +53,8 @@ rule lofreq_calling:
     """
     input: 
         genome=get_genome,
-        bam=join(config['dedup_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.bam"),
-        bam_index=join(config['dedup_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.bam.bai")
+        bam=join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.bam"),
+        bam_index=join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.bam.bai")
     output: join(config['variant_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.lofreq.vcf")
     params: maxdepth=10000
     conda: '../envs/variant.yml'

@@ -15,6 +15,7 @@ mkdir -p tmp
 snakemake \
     --use-conda \
     --conda-prefix ./env \
+    -R \
     -j 999 \
     --cluster-config cluster.yml \
     --cluster "sbatch -p {cluster.partition} -c {cluster.cpus} -t {cluster.time} -J {cluster.name} --mail-user={cluster.user} --mail-type={cluster.mailtype} -o ./tmp/slurm-%x.%j.out" \

@@ -28,8 +28,8 @@ include: "rules/common.smk"
 rule all:
     input: 
         join(config['variant_dir'], "variants.csv"),
-        join(config['qc_dir'], 'multiqc'),
-        join(config['consensus_dir'], "all_samples_consensus.fa")
+        join(config['qc_dir'], 'multiqc')
+        #join(config['consensus_dir'], "all_samples_consensus.fa")
         #expand(join(config['trinity_dir'], "{accession}.{aligner}.trinity"), accession=pd.read_csv(config['samples']['file'])['Run'], aligner=['BWA','STAR'])
 
 rule clean:
@@ -48,5 +48,5 @@ include: "rules/trim.smk"
 include: "rules/ref.smk"
 include: "rules/align.smk"
 include: "rules/variant.smk"
-include: "rules/consensus.smk"
+#include: "rules/consensus.smk"
 #include: "rules/assembly.smk"

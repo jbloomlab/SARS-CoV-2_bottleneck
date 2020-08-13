@@ -14,8 +14,8 @@ rule samtools_stats:
     """ Calculate bam stats with samtools
     """
     input: 
-        join(config['dedup_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.bam"),
-        join(config['dedup_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.bam.bai")
+        join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.bam"),
+        join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.bam.bai")
     output: join(config['qc_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.bam.stats")
     log: "logs/samtools_stats/{accession}.{aligner}.log"
     conda: '../envs/samtools.yml'
