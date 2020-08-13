@@ -1,0 +1,79 @@
+#### ============ viral-deepseq configuration file ============ ####
+#                                                                  #
+# This file contains the tunable parameters for the viral-deepseq  #
+# pipeline.                                                        #
+#                                                                  #
+#### -------------------------- Util -------------------------- ####
+
+varscan: https://github.com/dkoboldt/varscan/raw/master/VarScan.v2.4.0.jar
+snpeff: http://sourceforge.net/projects/snpeff/files/snpEff_latest_core.zip
+
+#### ------------------------- Samples ------------------------ ####
+
+samples: 
+  file: config/mev_samples.csv
+  public: TRUE
+
+#### ------------------------ Genomes ----------------------- ####
+# Put viral and host genome ftp download locations here.         #
+# organism:                                                      #
+#   reference sequence: ftp://                                   #
+#   gtf annotations: ftp://                                      #
+#   contig: "only if the sequence is viral give it's contig"     #
+#### -------------------------------------------------------- ####
+
+SARS2:
+  ref: ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/009/858/895/GCF_009858895.2_ASM985889v3/GCF_009858895.2_ASM985889v3_genomic.fna.gz
+  gtf: ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/009/858/895/GCF_009858895.2_ASM985889v3/GCF_009858895.2_ASM985889v3_genomic.gtf.gz
+  contig: NC_045512.2
+
+SARS1:
+  ref: ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/864/885/GCF_000864885.1_ViralProj15500/GCF_000864885.1_ViralProj15500_genomic.fna.gz
+  gtf: ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/864/885/GCF_000864885.1_ViralProj15500/GCF_000864885.1_ViralProj15500_genomic.gtf.gz
+  contig: NC_004718.3
+  
+MeV:
+  ref: ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/854/845/GCF_000854845.1_ViralProj15025/GCF_000854845.1_ViralProj15025_genomic.fna.gz
+  gtf: ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/854/845/GCF_000854845.1_ViralProj15025/GCF_000854845.1_ViralProj15025_genomic.gtf.gz
+  contig: NC_001498.1
+
+MeVChiTok:
+  ref: config/ref/MeVChiTok.fa
+  gtf: ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/854/845/GCF_000854845.1_ViralProj15025/GCF_000854845.1_ViralProj15025_genomic.gtf.gz
+  contig: MeVChiTok
+
+human:
+  ref: ftp://ftp.ensembl.org/pub/release-99/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz
+  gtf: ftp://ftp.ensembl.org/pub/release-99/gtf/homo_sapiens/Homo_sapiens.GRCh38.99.gtf.gz
+
+ferret:
+  ref: ftp://ftp.ensembl.org/pub/release-99/fasta/mustela_putorius_furo/dna/Mustela_putorius_furo.MusPutFur1.0.dna.toplevel.fa.gz
+  gtf: ftp://ftp.ensembl.org/pub/release-99/gtf/mustela_putorius_furo/Mustela_putorius_furo.MusPutFur1.0.99.gtf.gz
+
+#### ------------------------ Params ----------------------- ####
+
+max_cpu: 24
+
+#### ------------------------- Dirs ------------------------ ####
+
+# ++ Results Directoties ++ #
+sra_dir: results/sra
+qc_dir: results/qc
+trim_dir: results/trim
+align_dir: results/align
+split_dir: results/split
+dedup_dir: results/dedup
+variant_dir: results/variant
+realign_dir: results/realign
+trinity_dir: results/trinity
+vicuna_dir: results/vicuna
+consensus_dir: results/consensus
+
+# ++ Config Directoties ++ #
+tools: config/tools
+ref_dir: config/ref
+gtf_dir: config/gtf
+index_dir: 
+  bwa: config/index/bwa
+  star: config/index/star
+  samtools: config/index/samtools

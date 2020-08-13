@@ -1,0 +1,39 @@
+# cluster configuration for running Snakefile on Hutch cluster
+
+__default__:
+  cpus: 4
+  partition: campus-new
+  time: 0-2
+  mem: 32000
+  name: "{rule}"
+  user: wwh22@uw.edu
+  mailtype: END
+
+bwa_mem:
+  cpus: 16
+  partition: campus-new
+  time: 0-4
+  user: wwh22@uw.edu
+  mailtype: END
+
+star_align:
+  cpus: 16
+  partition: campus-new
+  time: 0-4
+  user: wwh22@uw.edu
+  mailtype: END
+
+bwa_index:
+  cpus: 16
+  partition: campus-new
+  time: 0-4
+  user: wwh22@uw.edu
+  mailtype: END
+
+star_index:
+  cpus: 16
+  partition: campus-new
+  time: 0-4
+  user: wwh22@uw.edu
+  mailtype: END
+

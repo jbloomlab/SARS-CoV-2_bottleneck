@@ -1,0 +1,496 @@
+---
+title: "Analysis Template"
+author: "Will Hannon"
+date: "7/10/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+require("knitr")
+
+## ==== Important file paths ==== ##
+
+input.filepath = "../results/variant/variants.csv"
+
+```
+
+```{r Required Packages, message=FALSE, warning=FALSE, echo=FALSE}
+## List of all packages needed -- non-BioManager installed
+packages = c("tidyverse", "kableExtra", "gridExtra", "grid")
+## Check that packages are installed, if not, install them
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+## Packages loading
+invisible(lapply(c(packages), library, character.only = TRUE))
+
+```
+
+### Notebook Overview
+
+**Template Analysis**
+
+### Cohort Overview
+
+```{r Data Imports, message=FALSE, warning=FALSE, echo=FALSE}
+## ==== Download the data ==== ##
+
+# Variants called in the analysis pipeline
+variant.df = read_csv(input.filepath) %>% 
+  mutate(Gene = case_when(Gene_Name == "MeVgp1" ~ "N",
+                          Gene_Name == "MeVgp2" ~ "P/V/C",
+                          Gene_Name == "MeVgp3" ~ "M",
+                          Gene_Name == "MeVgp4" ~ "F",
+                          Gene_Name == "MeVgp4" ~ "H",
+                          Gene_Name == "MeVgp6" ~ "L"))
+
+```
+
+
+### Analysis
+
+For now, I think the best approach to variant calling is `STAR` as the aligner and [`varscan2`](http://varscan.sourceforge.net/) as the variant caller. Of course, it's worth double checking results across all of the tool combinations, but since the samples are RNA and can have odd junctions, it's best to use `STAR`. Also, since `varscan` uses straight-forward heuristic thresholds and no hypothesis testing, it's results are the easiest to interpret. 
+
+The thresholds that I used for `varscan` were:
+
+-  `--min-coverage 100`: At least a 100 reads covering a variant site.
+-  `--min-reads2 5`: At least 5 supporting variant reads at a position to call a variant.
+-  `--min-avg-qual 30`: Minimum base quality of 30 at a position to call a varaint. 
+-  `--min-var-freq 0.01`: A minimum variant allele frequency of 1%. 
+
+#### SNP Landscape
+
+```{r Prepare Data, message=F, warning=F, echo=FALSE}
+## ==== Filter for only variants in the RBD ==== ##
+#                                                 #
+# Coordinates of the RBD are residues 331 to 531  # 
+# On the NC_045512 Ref genome the genomic coords  #
+# are 22553 to 23155                              #
+#                                                 #
+## ==== =================================== ==== ##
+
+# Filter the data to get just the RBD and join with Tyler's data
+variant.df %>% 
+  mutate(ProtPos = as.numeric(str_extract(AA_Change, "[[:digit:]]+"))) %>%
+  mutate(Effect = if_else(is.na(Effect), "InDel", Effect)) %>% 
+  select(!c("LibraryLayout","Virus","Host")) %>% 
+  separate(AA_Change, 
+           into = c("AA_wt", "AA_mut"), 
+           sep = "[[:digit:]]+", remove = FALSE)
+
+```
+
+Of the `r length(unique(metadata.df$Run))` samples run through the pipeline, `r length(unique(rbd.df$Accession))` had SNPs in the RBD. Here is the distribution of these SNPs (I filtered out the InDels) in the RBD across each sample. The distributions is positivley skewed towards a few samples that have a large number of variants. 
+
+```{r Count SNPs, message=F, warning=F, echo=FALSE}
+
+variant.df %>% 
+  group_by(Accession) %>% 
+  summarise(Count = n()) %>% 
+    ggplot(aes(x=Count)) +
+      geom_histogram(binwidth=1) +
+      ggtitle("Distribution of SNP Counts in RBD") + 
+      xlab("SNPs") +
+      ylab("Count") +
+      theme_classic() +
+      theme(legend.position="none") +
+      theme(text=element_text(size=14,  family="mono")) +
+      theme(plot.title = element_text(hjust = 0.5)) +
+      theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) 
+    
+```
+
+Here is the location of these SNPs across the RBD colored by the mutational effect (synonymous, non-synonymous, and missense).
+
+```{r All Variants, echo=F, message=F, warning=F,, fig.width=11, fig.height=5, fig.align='center'}
+# Fix the factor levels
+variant.df$Effect = factor(variant.df$Effect, levels = c("Synonymous", "Missense", "Nonsense")) 
+
+# Color scheme
+effect_colors = c("#13a13b","#e2e627","#990505")
+
+# Looking at the distribution of all variants.
+variant.df %>% 
+  filter(Caller == "varscan" & Aligner == "STAR") %>% 
+  filter(AF >= 0.05 & AF <= 0.95) %>% 
+  ggplot(aes(x = POS, y = AF, col = Tissue, fill = Tissue))+
+    geom_point(size = 2) + 
+    # geom_bar(stat="identity", width=.01, position = position_identity()) +
+    facet_wrap(~Tissue) + 
+    xlab("Position") +
+    ylab("Allele Frequency") +
+    ggtitle("Distribution of Variants (SNPs)") + 
+    #scale_x_continuous(breaks=c(0,5000,10000,15000,20000,25000,30000)) +
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(aspect.ratio = .25)  +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=18,  family="mono")) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed"),
+        strip.text.x = element_blank()) 
+
+
+```
+
+There are a handful of non-synonymous consensus variants. Here is a table showing these:
+
+```{r Consensus Variants, echo=F, message=F, warning=F, fig.align='center'}
+# What are the consensus variants?
+rbd.df %>% 
+  filter(AF >= 0.5 & Effect == "Missense") %>% 
+  select(c("POS", "AA_Change", "AA_Change_single", "Effect")) %>% 
+  group_by_at(setdiff(names(.), "AA_Change_single")) %>%
+  summarise(Count= n()) %>% 
+  kable(caption = "Consensus Variants") %>%
+  kable_styling(bootstrap_options = c("striped")) 
+```
+
+Also, I wanted to summarize the ratio of `Missense` to `Synonymous` to `Nonsense` mutations. From looking at the distribution of mutants called over all samples, it seems like there are more `Missense` mutations than `Synonymous` mutations. It also looks like there are more `Nonsense` mutations than expected. These plots confirm that notion. *These plots are only the minor variants (>50%)*.
+
+```{r Variant Effects, echo=F, message=F, warning=F,, fig.width=14, fig.height=5, fig.align='center'}
+# What is the breakdown of effect?
+var_effs = rbd.df %>% 
+  filter(AF <= 0.5) %>% 
+  ggplot(aes(x = Effect, y = AF, fill = Effect))+
+    # geom_jitter(size = 2, width = 0.2) + 
+    geom_violin(width = 0.2) + 
+    xlab("") +
+    ylab("Allele Frequency") +
+    ggtitle("Variant Effects (Frequency)") + 
+    scale_color_manual(values=effect_colors) +
+    scale_fill_manual(values=effect_colors) +
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=18,  family="mono")) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed"),
+        strip.text.x = element_blank()) 
+
+var_num = rbd.df %>% 
+  filter(AF <= 0.5) %>% 
+  ggplot(aes(x = Effect, fill = Effect))+
+    geom_bar(stat="count", width=0.5, position = position_identity()) +
+    xlab("") +
+    ylab("Count") +
+    ggtitle("Variant Effects (Counts)") + 
+    scale_color_manual(values=effect_colors) +
+    scale_fill_manual(values=effect_colors) +
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=18,  family="mono")) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed"),
+        strip.text.x = element_blank()) 
+
+grid.arrange(var_effs, var_num, ncol=2)
+
+```
+ 
+
+Next, I looked at the distribution of minor variants (`AF <= 0.5`). It is unlikely that these variants were present in the initial strain that infected these individuals. I represented this data in two ways, **(1)** with each dot representing an individual mutation at a position, and **(2)** with each bar representing the number of mutations observed at a given position (residue coordinates, not genomic coordinates). It is important to note that one `Run` can contribute multiple SNPs at both the genomic and protein level if there are multiple minor variants. 
+
+```{r Minor Variants, echo=F, message=F, warning=F, fig.width=11, fig.height=10, fig.align='center'}
+# Just the minor variants -- genomic 
+mSNP_genomic = rbd.df %>% 
+  filter(AF < 0.5) %>% 
+    ggplot(aes(x = POS, y = AF, col = Effect, fill = Effect))+
+      geom_point(size = 2) + 
+      geom_bar(stat="identity", width=.01, position = position_identity()) +
+      xlab("Position") +
+      ylab("Allele Frequency") +
+      ggtitle("Distribution of Minor Variants (SNPs) Genomic Coordinates") + 
+      scale_color_manual(values=effect_colors) +
+      scale_fill_manual(values=effect_colors) +
+      scale_x_continuous(breaks=c(22600,22700,22800,22900,23000,23100)) +
+      theme_classic() +
+      theme(legend.position="none") +
+      theme(aspect.ratio = .25)  +
+      theme(text=element_text(size=18,  family="mono")) +
+      theme(plot.title = element_text(hjust = 0.5)) +
+      theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed"),
+          strip.text.x = element_blank()) 
+
+# Just the minor variants -- protein coords.
+mSNP_protein = rbd.df %>% 
+  filter(AF < 0.5) %>% 
+  group_by(ProtPos, Effect) %>% 
+  summarize(Count = n()) %>% 
+    ggplot(aes(x = ProtPos, y = Count, fill = Effect))+
+      geom_bar(stat="identity", width=.75, position = position_identity()) +
+      xlab("Position") +
+      ylab("Count") +
+      ggtitle("Distribution of Minor Variants (SNPs) Residue Coordinates") + 
+      scale_fill_manual(values=effect_colors) +
+      theme_classic() +
+      theme(legend.position="none") +
+      theme(aspect.ratio = .25)  +
+      theme(text=element_text(size=18,  family="mono")) +
+      theme(plot.title = element_text(hjust = 0.5)) +
+      theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed"),
+          strip.text.x = element_blank()) 
+    
+grid.arrange(mSNP_genomic, mSNP_protein, nrow=2)
+```
+
+Something that immediately stands out is the large number of `Nonsense` mutations shared with `Missense` variations at one of the most frequently mutated positions in the RBD. The other thing that stands out is that there are many non-synonymous mutations that seem to be shared by individuals. I will investigate both of these observations. 
+
+#### Quality Investigation
+
+```{r Unique Variants, echo=F, message=F, warning=F}
+
+# Add in the genomic mutation to make it easier to count unique ones. 
+rbd.df = rbd.df %>% 
+  mutate(NT_Change = paste0(REF, POS, ALT)) 
+
+# How many unqiue AA changes? - these with missense or nonsense 
+n_AA_changes = length(unique(rbd.df[rbd.df$Effect == "Missense" | rbd.df$Effect == "Nonsense",]$AA_Change))
+
+# How many unqiue nucleotide changes? - both in total and non-synonymous
+n_SNPs = length(unique(rbd.df$NT_Change))
+n_NS_nt_changes = length(unique(rbd.df[rbd.df$Effect == "Missense" | rbd.df$Effect == "Nonsense",]$NT_Change))
+
+```
+
+There are a total of `r n_SNPs` unique SNPs at the genomic level that result in `r n_NS_nt_changes` `Nonsense` or `Missense` mutations. In total, there are `r n_AA_changes` unique protein changes including premature stop codons. Below I plotted the histogram of the number of samples these unique `Missense` and `Nonsense` mutations appear in. This gives some idea of the level of homoplasy between all of the samples.
+
+```{r Unique Variants Histogram, echo=F, message=F, warning=F, fig.align='center'}
+
+rbd.df %>% 
+  filter(Effect != "Synonymous") %>% 
+  group_by(AA_Change) %>% 
+  summarise(n = n()) %>% 
+    ggplot(aes(x = n)) +
+      geom_histogram(bins = 50) +
+      geom_vline(xintercept = 4, size = .5, col = "red", lty = 2) +
+      ggtitle("Distribution of Unique AA Changes") + 
+      xlab("Number of Observations") +
+      ylab("Count") +
+      theme_classic() +
+      theme(legend.position="none") +
+      theme(text=element_text(size=14,  family="mono")) +
+      theme(plot.title = element_text(hjust = 0.5)) +
+      theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) 
+
+```
+
+There are clearly some outliers that show up quite a few times. I decided to look at any Amino Acid change that showed up more than 4 times, along with any other SNPs at those codons (the underlying nucleotide change is not shown, that's why there are synonymous `AA_Change`s).
+
+```{r Unique Variants Table, echo=F, message=F, warning=F, fig.align='center'}
+rbd.df %>% 
+  group_by(AA_Change, ProtPos) %>% 
+  summarise(Count = n()) %>% 
+  filter(Count >= 4) %>% 
+  arrange(-ProtPos) %>% 
+  kable(caption = "Unqiue Amino Acid Variants") %>%
+  kable_styling(bootstrap_options = c("striped")) 
+```
+
+Instead of arranging the table by `Count`, I chose to arrange it by the amino acid position in the RBD (`ProtPos`). That's because it highlights a very unusual phenomenon: many of the most common amino acids changes are hit multiple times at the codon level. I found it suspicious that they were also typically mutated in the same number of samples. This observation and the fact that two of these frequent amino acid changes were `Nonsense` suggested that these could be di- or tri-nucleotide mutations within the same codon in the same sample. In other words, the amino acid change that appears in the table doesn't reflect the actual amino acid change in virus. 
+
+This observation raises a lot of questions. It seems extremely unlikely that these would be true homoplasic mutations that arose independently in many individuals. These may be linked cases in which minor variants were transmitted, as observed in geographically focused studies. It's also possible that these are individuals that got sequenced multiple times and therefore looked like independent runs. Given that we know this study has longitudinal samples, and that most individuals were from the same geographic region, these are both possibilities. 
+
+Finally, it could be the case that these are artifacts of sample-prep or the bioinformatic pipeline. I'm going to investigate all of these possibilities here.
+
+```{r Multiple Hits, message=F, warning=F}
+# This should effectivley group the results by POS, so if there are Count = 3, that
+# means that three different POS were hit. 
+multihit.df = rbd.df %>% 
+  group_by(Accession, ProtPos) %>% 
+  summarize(Count = n()) %>% 
+  filter(Count >= 2) 
+
+```
+ 
+As a quick way of seeing if a codon position is mutated multiple times, I grouped by Sample and residue position (`ProtPos`) in the RBD and counted the number of variants within an indiviudal that hit the same codon 
+
+Here is a list of the positions in the Spike RBD that are mutated multiple times in the same individual (2-3 times):
+ `r sort(unique(multihit.df$ProtPos))`
+
+Here is a list of the positions in the Spike RBD that are mutated at three nucleotide positions:
+`r sort(unique(multihit.df[multihit.df$Count == 3, ]$ProtPos))`
+
+Looking at the frequencies of these mutations: 
+```{r Three Hits, message=F, warning=F, echo=F}
+multihit.df[multihit.df$Count == 3, ] %>% 
+  group_by(ProtPos) %>% 
+  summarise(n = n()) %>% 
+  arrange(-n) %>% 
+  kable(caption = "Multiple Nucleotide Hits") %>%
+  kable_styling(bootstrap_options = c("striped")) 
+  
+```
+
+Two of them are in multiple samples and the others are in 1-3 samples. The table is a bit misleading as some of the positions that only appear in a single sample are mutated at two nucleotide positions as well. Because I just sorted by the number of times a position is mutated by sample, some samples that are mutated twice at these positions don't appear. It could be the case that they are actually mutated at all three positions in those samples, but the other variant allele was not called. 
+
+```{r Three Hits Contd, message=F, warning=F, echo=F}
+common_multihits = multihit.df[which(multihit.df$ProtPos %in% c(361, 463)), ] %>% 
+  group_by(Accession) %>% 
+  summarise(n = n()) %>% 
+  mutate(Shared = if_else(n ==2, "Both", "Single")) 
+
+both = nrow(common_multihits[common_multihits$Shared == "Both", ])
+single = nrow(common_multihits[common_multihits$Shared == "Single", ])
+
+```
+
+There are `r both + single` sequencing runs that have di- or tri-nucleotide mutations in the codons at positions 361 and 463 of the RBD. Of these, `r both` have SNPs called in both codons and `r single` have SNPs called in one or the other codon.
+
+There is another set of unusual mutations clustered around position 500 in the Spike RBD. You can see this on the bar plot of SNP counts further above. Lots of the mutations at these positions seem to have multiple SNPs in the same codon. 
+
+```{r Two Hits, message=F, warning=F, echo=F}
+multihit.df[multihit.df$Count == 2, ] %>% 
+  group_by(ProtPos) %>% 
+  summarise(n = n()) %>% 
+  filter(n > 3) %>% 
+  arrange(-n) %>% 
+  kable(caption = "Two Nucleotide Hits") %>%
+  kable_styling(bootstrap_options = c("striped")) %>% 
+  row_spec(1:3, bold = T, color = "white", background = "#D7261E")
+  
+```
+
+But most even more bizzare, if one position has SNPs all three have SNPs. 
+
+```{r Suspicious Samples, echo=F, message=F, warning=F}
+
+sus.samples = multihit.df[which(multihit.df$ProtPos %in% c(500, 501, 502)), ] %>% 
+  group_by(Accession) %>% 
+  summarise(n = n()) %>% 
+  mutate(`Mutated at RBD Position 500, 501, and 502` = if_else(n == 3, "Yes", "No")) %>% 
+  select(!n) 
+
+sus.samples %>% 
+  kable(caption = "Suspicious Samples") %>%
+  kable_styling(bootstrap_options = c("striped")) 
+
+```
+
+I dove a little deeper into some of these mutations and looked at the alignments in IGV. I do see all of these mutations occurring on the same reads. 
+
+
+![](../../results/figures/2020_07_01_BrowserShot1.png)
+
+However, I think they might be an artifact of sample preparation beacuse when they show up they tend to be in the same position in the read and the reads seem to be duplicates of some kind. 
+
+![](../../results/figures/2020_07_01_BrowserShot2.png)
+
+It might be necessary to either play with the variant filtering - perhaps only calling variants that have support from reads going in multiple directions - or add in a step to remove PCR duplicates. 
+
+The tri-nucleotide mutation at amino acid position 361 is a little more mysterious. Looking in the browser, it is a little less obvious how sequencing errors would result in this mutation. There are Reads going in both directions that fall at multiple positions that support this mutation. 
+
+![](../../results/figures/2020_07_01_BrowserShot3.png)
+
+#### Binding and Expression Effects 
+
+Finally, to correlate the mutations that I find with the binding and expression effects from [Tyler's paper](https://doi.org/10.1101/2020.06.17.157982), I just removed all of the codon positions in RBD that had SNPs at multiple nucleotide positions. I assumed that these positions likely had SNPs that were artifacts, and therefore shouldn't be included. More importantly, the annotation of the protein-coding effect is inaccurate if there were multiple mutations in the same codon. Of course, this method isn't ideal, but until I figure out a better way to get higher confidence SNPs, it's the best approach. 
+
+```{r Mutation Effect, echo=F, message=F, warning=F, fig.width=12, fig.height=12, fig.align='center'}
+
+bindplt = rbd.df[which((!rbd.df$ProtPos %in% multihit.df$ProtPos)), ] %>% 
+  ggplot(aes(x = bind_avg, y = AF, col = Effect)) +
+    geom_point() +
+    xlab("Binding Average") +
+    ylab("Allele Frequency") +
+    ggtitle("Intrahost Variant Binding Average") + 
+    scale_color_manual(values=effect_colors) +
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=18,  family="mono")) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed"),
+        strip.text.x = element_blank()) 
+
+exprplt = rbd.df[which((!rbd.df$ProtPos %in% multihit.df$ProtPos)), ] %>% 
+  ggplot(aes(x = expr_avg, y = AF, col = Effect)) +
+    geom_point() +    
+    xlab("Expression Average") +
+    ylab("Allele Frequency") +
+    ggtitle("Intrahost Variant Expression Average") + 
+    scale_color_manual(values=effect_colors) +
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=18,  family="mono")) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed"),
+        strip.text.x = element_blank())
+
+
+    
+grid.arrange(bindplt, exprplt, nrow=2)
+
+```
+
+I also wanted to see where the intra-host RBD mutants that I observed fall in the distribution of all mutations that Tyler measured for both Binding and Expression effects. Here I'm only looking at `Missense` mutations.
+
+```{r Effects Contd, echo=F, message=F, warning=F,, fig.width=14, fig.height=5, fig.align='center'}
+inter1.df = muteff.df %>% 
+  mutate(Effect = case_when(
+    wildtype == mutant ~ "Synonymous",
+    wildtype != mutant & mutant != "*" ~ "Missense",
+    mutant == "*" ~ "Nonsense"))%>% 
+  select(AA_Change_single = "mutation", Effect, bind_avg, expr_avg) %>% 
+  mutate(datset = "All Tested")
+
+inter2.df = rbd.df[which((!rbd.df$ProtPos %in% multihit.df$ProtPos)), ] %>% 
+  select(AA_Change_single, Effect, bind_avg, expr_avg) %>% 
+  mutate(datset = "Observed")
+
+
+bindplt2 = rbind(inter1.df, inter2.df) %>% 
+  filter(Effect == "Missense") %>% 
+  ggplot(aes(x=datset, y=bind_avg, fill=datset))+
+    geom_jitter(width = 0.1, size = .5, alpha = 0.3) +
+    geom_boxplot(width = 0.5, alpha = 0.5) +    
+    xlab("") +
+    ylab("Binding Effect") +
+    ggtitle("RBD Mutants (Binding)") + 
+    scale_fill_manual(values=c("#323131", "#BABABA")) +
+    theme_classic() +
+    theme(legend.position="none") +
+    theme(text=element_text(size=18,  family="mono")) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed"),
+        strip.text.x = element_blank())
+    
+
+exprplt2 = rbind(inter1.df, inter2.df) %>% 
+  filter(Effect == "Missense") %>% 
+  ggplot(aes(x=datset, y=expr_avg, fill=datset))+
+    geom_jitter(width = 0.1, size = .5, alpha = 0.3) +
+    geom_boxplot(width = 0.5, alpha = 0.5) +  
+    xlab("") +
+    ylab("Expression Effect") +
+    ggtitle("RBD Mutants (Expression)") + 
+    scale_fill_manual(values=c("#323131", "#BABABA")) +
+    theme_classic() +
+    theme(legend.position="none") +
+    theme(text=element_text(size=18,  family="mono")) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed"),
+        strip.text.x = element_blank())
+    
+    
+grid.arrange(bindplt2, exprplt2, ncol=2)
+
+```
+
+### Conclusions 
+
+From the perspective of the analysis, it seems like most RBD mutations sampled within an individual infection have less effect on biding and expression than the median missense mutation tested by DMS. However, it was necessary to remove residues that got hit at multiple positions at the codon level by di- and tri-nucleotide mutations to accurately show this. I did this for two reasons: (1) SNPs that fall into the same codon in an individual are not annotated with the correct amino acid change by `SNPeff`, (2) for investigating in IGV, many of the most frequent di- and tri-nucleotide mutations appear to be artifactual.
+
+From the perspective of the computational pipeline, this analysis shows how much of an influence data quality can have on the interpretation of the results. I am currently adding in a step to remove PCR duplicates with the hope that it will fix the artifacts observed above. I'm also going to try and automate the filtering of runs that fail specific quality control metrics. 
+
+The next step of this analysis will be to run another large set of samples, preferably from a diverse geographical cohort (involving multiple cities). 
+
+
+
+
+
+
+

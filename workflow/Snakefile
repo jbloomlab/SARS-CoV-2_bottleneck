@@ -1,0 +1,52 @@
+""" 
+This Snakemake file runs the template analysis for the viral-deepseq pipeline.
+
+Author: Will Hannon – https://www.linkedin.com/in/williamhannon/
+"""
+
+#### ----------------------- Imports ----------------------- ####
+
+import pandas as pd 
+from os.path import join
+from snakemake.utils import min_version
+
+min_version('5.6.0')  # require `snakemake` >= 5.6.0
+
+# Allow users to fix the underlying OS via singularity.
+container: "docker://continuumio/miniconda3"
+
+#### -------------------- Configuration -------------------- ####
+
+configfile: "config/config.yml"
+
+#### ------------------------ Utils ------------------------ ####
+
+include: "rules/common.smk"
+
+#### ----------------------- Targets ----------------------- ####
+
+rule all:
+    input: 
+        join(config['variant_dir'], "variants.csv"),
+        join(config['qc_dir'], 'multiqc'),
+        join(config['consensus_dir'], "all_samples_consensus.fa")
+        #expand(join(config['trinity_dir'], "{accession}.{aligner}.trinity"), accession=pd.read_csv(config['samples']['file'])['Run'], aligner=['BWA','STAR'])
+
+rule clean:
+    shell:
+        """
+        rm -rf logs/
+        rm -rf tmp/
+        rm -f slurm*.out
+        """
+#### ------------------------ Rules ------------------------ ####
+
+include: "rules/tools.smk"
+include: "rules/sra.smk"
+include: "rules/qc.smk"
+include: "rules/trim.smk"
+include: "rules/ref.smk"
+include: "rules/align.smk"
+include: "rules/variant.smk"
+include: "rules/consensus.smk"
+#include: "rules/assembly.smk"
