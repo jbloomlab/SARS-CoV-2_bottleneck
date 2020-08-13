@@ -1,41 +1,22 @@
-# Viral Deep-Sequencing Pipeline
+# SARS-CoV-2 Transmission Bottleneck
 
 [![Snakemake](https://img.shields.io/badge/snakemake-≥5.17-brightgreen.svg)](https://snakemake.bitbucket.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-The `viral-deepseq` pipeline is a generalizable framework for analyzing next-generation sequencing data from RNA viruses. The workflow is flexible, allowing for multiple virus types and analysis configurations. In addition to its sequence analysis capabilities, the pipeline also functions as a toolkit with powerful scripts for analyzing intra-host genetic diversity.   
+*This analysis was conducted using the `viral-deepseq` pipeline template.*
 
-## Authors
+## Contributors
 
 * [Will Hannon](https://www.linkedin.com/in/williamhannon/)
 * [Jesse Bloom](https://www.fredhutch.org/en/faculty-lab-directory/bloom-jesse.html)
 
-## Getting Started 
+## Analysis Overview
 
-First, clone the repository to your desired location. 
-
-```
-git clone https://github.com/jbloomlab/viral-deepseq.git
-```
-
-To get started running this pipeline, you will need `conda` as implemented in either `anaconda` or `miniconda`. To install either of these, follow the instructions [here](https://docs.conda.io/projects/continuumio-conda/en/latest/user-guide/install/index.html#regular-installation).
-
-Once you've cloned the repository and installed conda, you can create the environment needed to run the pipeline. To do this, run the following command. 
-
-```
-conda env create --file environment.yml; conda activate viral-deepseq
-```
+This analysis aims to see if there is a substantial transmission of intra-host minor variants between individuals in a large cluster of infections. This information could help characterize the inter-host transmission bottleneck in SARS-CoV-2 with the highest resolution achieved so far. 
 
 ## Running Analysis
 
-To configure the analysis, you will need a table with the [NCBI SRA](https://www.ncbi.nlm.nih.gov/sra) accessions, the Library Layout (paired-end or single-end reads), the name of the virus corresponding to the location of its genome in the [`config file`](/config/config.yml), and the identity of the host organism if there are contaminating reads. See below for the correct format. 
-
-| Run         | LibraryLayout | Virus | Host  |
-|-------------|---------------|-------|-------|
-| SRR11549941 | SINGLE        | SARS2 | human |
-| SRR11549942 | SINGLE        | SARS2 | human |
-| SRR11140746 | PAIRED        | SARS2 | none  |
-| SRR11140748 | PAIRED        | SARS2 | none  |
+The analysis is configured in the `./config` directory. Reference genomes and associated gene annotations are specified in the [`config file`](/config/config.yml), and the location of the included samples is found in the `samples.csv` file.  
 
 To run the analysis locally, you can use the following command. I would not recommend this, because the computational time will be extensive if you don't have many cores. 
 

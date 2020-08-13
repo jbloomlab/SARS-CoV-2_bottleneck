@@ -1,29 +1,40 @@
-## Development Notes
+## Notes
 
-This document contains notes for development; goals, to do's, ect..
+This document contains notes and useful information for the project – `SARS-CoV-2_Bottleneck`.
 
-### Goals
+## Pre-print Notes
 
-The aim of this pipline is to centralize the development of pipelines used for all things viral deepsequencing. The key principle is that you shoul be able to download data from the SRA Run Selector and use that csv, with other added information, to run the whole pipeline. The user should be able to toggle the config file to determine which aligners, quality control, and analysis tools they want to use. 
+#### Cohort Overview
 
-### To Do
+There was an outbreak on a fishing boat in Seattle. Individuals (120/122) were screened for SARS-CoV-2 RNA by RT-qPCR and seroconversion by the Abbot IgG assay both before departure and after return. Although all were negative, an outbreak occured nonetheless. A total of 104/122 crew members had viral RNA or seroconverted upon return to shore (84% Attack Rate). 
 
-- I now have all of the varaint calling rules worked into the new framework that can use multiple viruses or hosts. I still need to make sure all of the qc is updated, but otherwise I can now start looking into new modules like assembly. 
+#### Data Overview 
 
-- I was looking through some variant calling pipelines for RNA-seq and I was looking through Maddy's pipeline and I decided to try some different approachs to incorporating `GATK` best practices. I can't get Maddy's BSQR (Base Score Recallibration) rule to work for my pipeline. There is no 'know-sites' to use for viruses. I'm not sure it makes sense to do any kind of recallibration for this analysis? I can't find anywhere that uses realignment and indel qualities for small genomes with high error rates. 
+From the 104 reportedly infected crew memebers there are 39 metagenomic RNA-sequencing runs avaliable. The data is avaliable publically at NCBI BioProject `PRJNA610428`. Metadata for the identity of samples is avaliable in Supplementary Table 2.
 
-- I was reading about some of the caveats of variant calling with viruses. I should look into incorporating 'DeepSNV'. I think it's an R-script and it was benchmarked on viruses against lofreq by J.T. Macrone. 
+The metadata only contains the GISAID-ID for the consensus and the strain. I might be able to use the strain to figure out the SRR# using the metadata on the [SRA run selector](https://www.ncbi.nlm.nih.gov/Traces/study/?query_key=2&WebEnv=MCID_5f344f743a76fab9ab22e42b&o=acc_s%3Aa). 
 
-- `Lofreq` can produce an empty VCF file if it finds no variants. It doesn't get treated as an empty file by the pipeline because it had a header. It can cause the `vcf_to_table` rule to fail. Possible putting in checkpoints here would solve this issue, or splitting the shell command with try/except in python would fix the issue.
+#### Experimental Overview 
 
-- Add in a rule to index genomes with samtools before variant calling. Lofreq can break if STAR alignment happens before BWA (because the genome used to call variants won't have been indexed yet).  
+> Libraries were sequenced on a 1x75 bp Illumina NextSeq run. A median of 509,551 sequencing reads were obtained for each sample.
 
-- With BWA at least, there are some reads pairs that map to different chromosomes. This proves to be an issue for Lofreq. It only seems to happen with BWA. It's very curious. 
+#### Pipeline Overview
 
-### Tools to Use
+In the paper, the authors use a [custom genome calling pipeline](https://github.com/proychou/hCoV19) to construct consensus genome from the samples for use in phlyogenetic analyses. Briefly, they trimmed adaptors with `BBDuk`, aligned reads to the SARS-CoV-2 reference genome (Wuhan-Hu-1 NC_045512.2) with `Bowtie2`, filtered viral reads with `BBDuk`, and assembled new consensus genomes with `SPAdes`. 
 
-Here are some of the functionalties that I'm trying to build into the pipeline and the tools that can be used to make this work.
+#### Results Overview
 
-- Taxonomy of input samples 
+*This is a quick overview of the relevant results from the section "Confirmation of outbreak with whole genome sequencing"*
 
-- 
+> Metagenomic recovery of 39 SARS-CoV-2 whole genomes from the outbreak indicated a major single outbreak clade (FastTree support value: 1.00) covering 38 isolates that differed by a median of one nucleotide across the genome (range 0-5). Sixteen of these isolates shared completely identical sequence.
+
+## Project Notes
+
+The goal of this preliminary analysis is to identify homoplastic, low-frequency variants that might reveal something about the size of the inter-patient transmission bottleneck for SARS-CoV-2. 
+
+There are three useful papers to go over closely when thinking about how to construct this analysis: 
+
+1. [Shared SARS-CoV-2 diversity suggests localised transmission of minority variants](https://doi.org/10.1101/2020.05.28.118992)
+2. [Population Bottlenecks and Intra-host Evolution during Human-to-Human Transmission of SARS-CoV-2](https://doi.org/10.1101/2020.06.26.173203)
+3. [Stochastic processes constrain the within and between host evolution of influenza virus](https://doi.org/10.7554/eLife.35962)
+
