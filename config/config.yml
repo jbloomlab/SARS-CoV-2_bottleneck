@@ -11,7 +11,7 @@ snpeff: http://sourceforge.net/projects/snpeff/files/snpEff_latest_core.zip
 #### ------------------------- Samples ------------------------ ####
 
 samples: 
-  file: config/mev_samples.csv
+  file: config/samples.csv
   public: TRUE
 
 #### ------------------------ Genomes ----------------------- ####
