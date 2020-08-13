@@ -1,0 +1,84 @@
+---
+title: "SARS-CoV-2 Bottleneck Preliminary Analysis"
+author: "Will Hannon"
+date: "8/13/2020"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+require("knitr")
+knitr::opts_chunk$set(echo = FALSE)
+
+## ==== Important file paths ==== ##
+
+preprint.filepath =  "../../config/data/preprint_samples.csv" # Samples from pre-print
+runselector.filepath =  "../../config/data/PRJNA610428.csv" # Samples from Bioproject
+
+```
+
+```{r Required Packages, message=FALSE, warning=FALSE, echo=FALSE}
+## List of all packages needed -- non-BioManager installed
+packages = c("tidyverse", "kableExtra", "gridExtra", "grid")
+## Check that packages are installed, if not, install them
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+## Packages loading
+invisible(lapply(c(packages), library, character.only = TRUE))
+
+```
+
+
+## Notebook Overview
+___
+
+#### Project Aim
+
+This analysis aims to see if there is a substantial transmission of intra-host minor variants between individuals in a large cluster of infections. This information could help characterize the inter-host transmission bottleneck in SARS-CoV-2 with the highest resolution achieved so far.
+
+#### Cohort Overview
+
+There was an outbreak on a fishing boat in Seattle. Individuals (120/122) were screened for SARS-CoV-2 RNA by RT-qPCR and seroconversion by the Abbot IgG assay both before departure and after return. Although all were negative, an outbreak occured nonetheless. A total of 104/122 crew members had viral RNA or seroconverted upon return to shore (84% Attack Rate). 
+
+#### Data Overview 
+
+From the 104 reportedly infected crew memebers there are 39 metagenomic RNA-sequencing runs avaliable. The data is avaliable publically at NCBI BioProject [`PRJNA610428`](https://www.ncbi.nlm.nih.gov/Traces/study/?query_key=2&WebEnv=MCID_5f344f743a76fab9ab22e42b&o=acc_s%3Aa). Metadata for the identity of samples is avaliable in Supplementary Table 2.
+
+The metadata only contains the GISAID-ID for the consensus and the strain. I might be able to use the strain to figure out the SRR# using the metadata on the SRA run selector.
+
+#### Experimental Overview 
+
+Libraries were sequenced on a 1x75 bp Illumina NextSeq run. A median of 509,551 sequencing reads were obtained for each sample.
+
+```{r Samples, message=F, warning=F, echo=F}
+
+## ==== Read-in sample data and get SRA accessions ==== ###
+# Pre-print samples
+samples = read_csv(preprint.filepath)
+# Bioproject samples from Run Selector
+bioproject = read_csv(runselector.filepath)
+# Join the data-frames by 'Isolate' (derived from Strain)
+combined_samples = left_join(samples, bioproject, by="Isolate") %>% select(Strain = "Strain.x", Isolate, Run, Bases)
+# From manual inspection, some samples are missing from the Bioproject
+missing_samples = combined_samples %>% filter(is.na(Run))
+# Samples that aren't missing
+final_samples = combined_samples %>% filter(!is.na(Run))
+## ==== Write-out the sample data to run the analysis ==== ###
+write.csv(final_samples, "../../config/samples.csv", row.names = FALSE)
+
+```
+
+#### Included Samples
+
+The paper has a supplementary table (Supplementary Table 2.) that includes the strain names for each individual and the GISAID ID for the consensus, but not the SRA accession. I used this information to search the Bioproject ([`PRJNA610428`](https://www.ncbi.nlm.nih.gov/Traces/study/?query_key=2&WebEnv=MCID_5f344f743a76fab9ab22e42b&o=acc_s%3Aa)) for the relevant samples. This Bioproject contains all of the samples sequenced by the UW Virology Department (~1000 Runs). Of the 39 samples referenced in the paper, there are `r nrow(final_samples)` that had corresponding Runs deposited in this project and `r nrow(missing_samples)` that did not. 
+
+## Analysis
+___
+
+
+
+
+
+
