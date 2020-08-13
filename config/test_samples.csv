@@ -1,9 +1,0 @@
-Run,LibraryLayout,Virus,Host,Source,Path
-RCD_02_NoIndex_L001,PAIRED,MeV,human,local,"[/fh/fast/bloom_j/SR/ngs/illumina_MayoClinic/RCD_02_NoIndex_L001_R1.fastq.gz, /fh/fast/bloom_j/SR/ngs/illumina_MayoClinic/RCD_02_NoIndex_L001_R2.fastq.gz]"
-SRR11549941,SINGLE,SARS2,human,public,[]
-SRR11549942,SINGLE,SARS2,human,public,[]
-SRR11140746,PAIRED,SARS2,none,public,[]
-SRR11140748,PAIRED,SARS2,none,public,[]
-SRR11517874,SINGLE,SARS2,ferret,public,[]
-SRR11517691,SINGLE,SARS2,ferret,public,[]
-SRR11517842,SINGLE,SARS2,ferret,public,[]
