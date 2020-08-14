@@ -13,14 +13,18 @@ rule fastqc:
 rule samtools_stats:
     """ Calculate bam stats with samtools
     """
-    input: 
-        join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.bam"),
-        join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.bam.bai")
-    output: join(config['qc_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.bam.stats")
-    log: "logs/samtools_stats/{accession}.{aligner}.log"
+    input: join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.bam"),
+    output: join(config['qc_dir'], "{accession}", "{aligner}", "{accession}.{aligner}.bam.stats")
     conda: '../envs/samtools.yml'
-    shell: "samtools stats {input[0]} > {output} &> {log}"
+    shell: "samtools stats {input} > {output}"
 
+rule calculate_coverage: 
+    input: 
+        bam=join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.bam"),
+        index=join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.bam")
+    output: join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.coverage")
+    conda: '../envs/samtools.yml'
+    shell: "samtools depth {input.bam} > {output}"
 
 rule multiqc:
     """
@@ -29,8 +33,9 @@ rule multiqc:
     """
     input: 
         qc=expand([join(config['qc_dir'], '{accession}/fastqc'),
-                   join(config['qc_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.bam.stats"),
-                   join(config['qc_dir'], "{accession}", "STAR", "{accession}.STAR.Log.final.out")],
+                   join(config['qc_dir'], "{accession}", "{aligner}", "{accession}.{aligner}.bam.stats"),
+                   join(config['qc_dir'], "{accession}", "STAR", "{accession}.STAR.Log.final.out"),
+                   join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.coverage")],
                    accession=pd.read_csv(config['samples']['file'])['Run'], aligner=['BWA','STAR'])
     output: directory(join(config['qc_dir'], 'multiqc'))
     conda: '../envs/qc.yml'
