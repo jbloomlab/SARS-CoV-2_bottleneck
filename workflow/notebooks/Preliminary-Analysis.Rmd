@@ -14,7 +14,7 @@ knitr::opts_chunk$set(echo = FALSE)
 
 preprint.filepath =  "../../config/data/preprint_samples.csv" # Samples from pre-print
 runselector.filepath =  "../../config/data/PRJNA610428.csv" # Samples from Bioproject
-variant.filepath = "../../results/variant/variants.csv" # Combined Variant Calls
+variant.filepath = "../../config/data/variants.csv" # Combined Variant Calls
 annotations.filepath = "../../config/data/sars_cov_2_annot.csv" # SARS-CoV-2 gene locations
 ```
 
@@ -121,6 +121,19 @@ ORF8 = annotations.df %>% dplyr::filter(gene == "ORF8")
 N = annotations.df %>% dplyr::filter(gene == "Nucleocapsid")
 ORF10 = annotations.df %>% dplyr::filter(gene == "ORF10")
 
+# Rename genes for continuity
+annotations.df = annotations.df %>% 
+  mutate(gene = case_when(gene == "Orf1ab" ~ "ORF1ab",
+                          gene == "Spike" ~ "Spike",
+                          gene == "ORF3a" ~ "ORF3a",
+                          gene == "Envelope" ~ "Envelope",
+                          gene == "Membrane" ~ "Membrane",
+                          gene == "ORF6" ~ "ORF6",
+                          gene == "ORF7a" ~ "ORF7a",
+                          gene == "ORF8" ~ "ORF8",
+                          gene == "Nucleocapsid" ~ "Nucelocapsid",
+                          gene == "ORF10" ~ "ORF10"))
+
 # Add gene names to the variant.df
 variant.df = variant.df %>% 
   mutate(Gene = case_when(POS < ORF1ab$start ~ "3'UTR",
@@ -128,7 +141,7 @@ variant.df = variant.df %>%
                           POS >= S$start & POS <= S$end  ~ "Spike",
                           POS >= ORF3a$start & POS <= ORF3a$end  ~ "ORF3a",
                           POS >= E$start & POS <= E$end  ~ "Envelope",
-                          POS >= M$start & POS <= M$end  ~ "Matrix",
+                          POS >= M$start & POS <= M$end  ~ "Membrane",
                           POS >= ORF6$start & POS <= ORF6$end  ~ "ORF6",
                           POS >= ORF7a$start & POS <= ORF7a$end  ~ "ORF7a",
                           POS >= ORF8$start & POS <= ORF8$end  ~ "ORF8",
@@ -136,10 +149,11 @@ variant.df = variant.df %>%
                           POS >= ORF10$start & POS <= ORF10$end  ~ "ORF10",
                           POS > ORF10$end ~ "5'UTR")) %>% 
   select(!c("LibraryLayout", "Virus", "Host", "Source", "Path")) %>% 
+  mutate(ALT = ifelse(ALT == "True", "T", ALT)) %>% 
   mutate(Var_Type = case_when(nchar(REF) == 1 & nchar(ALT) == 1 ~ "SNP",
                               nchar(REF) > 1 ~ "Deletion",
                               nchar(ALT) > 1 ~ "Insertion")) %>% 
-  mutate(ALT = ifelse(ALT == "True", "T", ALT))
+  mutate(SNP = paste0(REF,POS,ALT), Mutation = paste0(REF, ">", ALT))
 
 ```
 
@@ -147,12 +161,83 @@ variant.df = variant.df %>%
 
 Data for the quality control portion of the analysis was collated by the tool `multiqc`. It consists of stats from `samtools`, `STAR`, `fastp`, and `fastQC.` I've also included the coverage over each sample in this part of the analyis.
 
+```{r Mutational Spectra, message=FALSE, warning=FALSE, echo=FALSE, fig.width=7, fig.height=5, fig.align='center'}
+variant.df %>% 
+  filter(Var_Type == "SNP") %>% 
+  ggplot(aes(x = Mutation)) +
+    geom_bar(stat = "count") + 
+    facet_grid(rows = vars(Caller), cols = vars(Aligner)) +
+    xlab("SNP Count") +
+    ylab("Mutations") +
+    ggtitle("Mutational Spectra") +
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=18,  family="mono")) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+    theme(axis.text.x=element_text(angle=35, hjust=1))
+  
+```
 
-```{r }
+```{r Effect Distribution, message=FALSE, warning=FALSE, echo=FALSE, fig.width=7, fig.height=5, fig.align='center'}
+
+# Fix the factor levels
+variant.df$Effect = factor(variant.df$Effect, levels = c("Synonymous", "Missense", "Nonsense")) 
+
+# Color scheme
+effect_colors = c("#13a13b","#e2e627","#990505")
+
+variant.df %>% 
+  filter(Var_Type == "SNP"  & !is.na(Effect)) %>% 
+  group_by(Aligner, Caller, Effect) %>% 
+  summarize(Count = n())  %>%
+  mutate(Frequnecy = Count / sum(Count)) %>% 
+  ggplot(aes(x = Effect, y = Frequnecy, fill = Effect)) +
+    geom_bar(stat = "identity") + 
+    facet_grid(rows = vars(Caller), cols = vars(Aligner)) +
+    geom_text(aes(label = paste0(round(Frequnecy, 4) * 100, "%")), size = 6, hjust = 0.5, vjust = -2, position = "stack", family="mono") +
+    xlab("Percent (%)") +
+    ylab("Effect") +
+    ggtitle("SNP Effect") +
+    ylim(0, 0.8) +
+    scale_fill_manual(values = effect_colors) +
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=18,  family="mono")) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) 
 
 ```
 
+```{r Gene Distribution, message=FALSE, warning=FALSE, echo=FALSE, fig.width=7, fig.height=5, fig.align='center'}
 
+variant.df %>% 
+  filter(Var_Type == "SNP"  & !is.na(Effect)) %>% 
+  group_by(Aligner, Caller, Gene) %>% 
+  summarize(Count = n())  %>%
+  left_join(., annotations.df, by = c("Gene"="gene")) %>% 
+  filter(Gene != "3'UTR", Gene != "5'UTR") %>% 
+  mutate(length = end - start) %>% 
+  mutate(Normalized = Count / length) %>% 
+  ggplot(aes(x = Gene, y = Normalized)) +
+    geom_bar(stat = "identity") + 
+    facet_grid(rows = vars(Caller), cols = vars(Aligner)) +
+    xlab("Gene") +
+    ylab("SNPs/Kb") +
+    ggtitle("SNPs per Gene") +
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=18,  family="mono")) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+    theme(axis.text.x=element_text(angle=35, hjust=1))
+  
+
+
+```
 
 
 ```{r}
