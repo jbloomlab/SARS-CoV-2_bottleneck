@@ -15,6 +15,7 @@ knitr::opts_chunk$set(echo = FALSE)
 preprint.filepath =  "../../config/data/preprint_samples.csv" # Samples from pre-print
 runselector.filepath =  "../../config/data/PRJNA610428.csv" # Samples from Bioproject
 variant.filepath = "../../results/variant/variants.csv" # Combined Variant Calls
+multiqc.filepath = "../../config/data/multiQC-data.csv" # Data formatted from MultiQC
 annotations.filepath = "../../config/data/sars_cov_2_annot.csv" # SARS-CoV-2 gene locations
 ```
 
@@ -283,7 +284,6 @@ variant.df %>%
 
 ```{r SNP Count, message=FALSE, warning=FALSE, echo=FALSE, fig.width=5, fig.height=4, fig.align='center'}
 
-
 variant.df %>% 
   filter(Var_Type == "SNP", Aligner == "BWA", Caller == "lofreq", AF <= 0.5) %>% 
   group_by(SNP, Experiment) %>% 
@@ -292,13 +292,10 @@ variant.df %>%
   ggplot(aes(x = Count, y = Experiment, fill = Experiment)) + 
     geom_density_ridges()
 
-  
-
-
 
 ```
 
-```{r}
+```{r Minor SNP Overlap, message=FALSE, warning=FALSE, echo=FALSE, fig.width=5, fig.height=4, fig.align='center'}
 
 variant.df %>% 
   filter(Var_Type == "SNP", Aligner == "BWA", Caller == "lofreq", AF <= 0.5) %>% 
@@ -326,10 +323,10 @@ shared.minor.variants = variant.df %>%
   pull(SNP)
 
 
-variant.df[which(variant.df$SNP %in% shared.minor.variants),] %>% 
-  filter(Aligner == "BWA", Caller == "lofreq") %>% 
-  arrange(SNP) %>% 
-  view()
+# variant.df[which(variant.df$SNP %in% shared.minor.variants),] %>% 
+#   filter(Aligner == "BWA", Caller == "lofreq") %>% 
+#   arrange(SNP) %>% 
+#   view()
 ```
 
 ```{r}
