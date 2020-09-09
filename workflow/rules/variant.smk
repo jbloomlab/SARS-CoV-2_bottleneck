@@ -22,10 +22,10 @@ rule varscan_calling:
                 java -jar {input.varscan} \
                     mpileup2snp \
                     --output-vcf 1 \
-                    --min-coverage 100 \
-                    --min-reads2 5 \
-                    --min-avg-qual 30 \
-                    --min-var-freq 0.01 > {params.tmp_snp}
+                    --min-coverage 1 \
+                    --min-reads2 1 \
+                    --min-avg-qual 20 \
+                    --min-var-freq 0.0 > {params.tmp_snp}
 
             samtools mpileup -d {params.maxdepth} -f {input.genome} \
                 {input.bam} | \
@@ -159,4 +159,31 @@ rule aggregate_variants:
         df.to_csv(output[0], index = False)
 
 
+rule raw_variants:
+    """
+    Calculate the raw varaints using `pileup` from Rsamtools. 
+    """
+    input:         
+        join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.bam"),
+        join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.bam.bai"),
+        get_genome
+    output: join(config['variant_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.rawvariants.csv")
+    conda: '../envs/r.yml'
+    script: "../scripts/variant_calling.R"
 
+rule aggregate_raw_variants:
+    """
+    This rule aggregates all of the raw variants. 
+    """
+    input: expand([join(config['variant_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.rawvariants.csv")], accession=pd.read_csv(config['samples']['file'])['Run'], aligner=['BWA','STAR'])
+    output: join(config['variant_dir'], "raw-variants.csv")
+    run:
+        paths = []
+        for f in input:
+            try:
+                pd.read_csv(f)
+                paths.append(f)
+            except:
+                pass
+        df = pd.concat(map(pd.read_csv, paths))
+        df.to_csv(output[0], index = False)

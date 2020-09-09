@@ -1,0 +1,225 @@
+---
+title: "Raw-Variants"
+author: "Will Hannon"
+date: "9/3/2020"
+output: html_document
+---
+
+```{r Setup, include=FALSE}
+require("knitr")
+knitr::opts_chunk$set(echo = FALSE)
+
+## ==== Important file paths ==== ##
+samples.filepath =  "../../config/samples.csv" # Samples that ran analysis
+annotations.filepath = "../../config/data/sars_cov_2_annot.csv" # SARS-CoV-2 gene locations
+variant.filepath = "../../results/variant/variants.csv" # Combined Variant Calls
+coverage.path = "../../results/split/" # Path to coverage data
+multiqc.path = "../../config/data/2020-08-07_multiQC-data.csv" # QC data
+```
+
+```{r Required Packages, message=FALSE, warning=FALSE, echo=FALSE}
+
+## ==== Install Required Packages ==== ##
+
+## List of all packages needed -- non-BioManager installed
+packages = c("tidyverse", "kableExtra", "gridExtra", "grid", "UpSetR", "ggridges", "ggpubr", "scales")
+## Check that packages are installed, if not, install them
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+## Packages loading
+invisible(lapply(c(packages), library, character.only = TRUE))
+
+```
+
+```{r Data Formatting, echo=FALSE, message=FALSE, warning=FALSE, fig.width=7, fig.height=5, fig.align='center'}
+## ==== Read in the variant calls ==== ##
+variant.df = read_csv(variant.filepath) 
+
+variant.df = variant.df %>%
+      filter(Aligner == "BWA", Caller == "varscan") %>% 
+      separate(col = Accession, into = c("Accession", "Replicate")) %>% 
+      mutate(Replicate = ifelse(is.na(Replicate), 1, Replicate)) 
+
+variant.df2 = inner_join(filter(variant.df, Replicate == 1),
+                        filter(variant.df, Replicate == 2),
+                        by = c( "Accession", "POS", "REF", "ALT"),
+                        suffix = c(".one", ".two")) %>% 
+              select(!c("Replicate.one", "Replicate.two", "Aligner.one", "Aligner.two"))
+
+
+variant.df2 %>% 
+  ggplot(aes(x = log10(AF.one), y = log10(AF.two))) + 
+    facet_wrap(~Accession) +
+    geom_smooth(method='lm', col = "red") + 
+    stat_cor(method="pearson") +
+    geom_point() +
+    xlab("Allele Frequency Replicate One (log10)") +
+    ylab("Allele Frequency Replicate Two (log10)") +
+    ggtitle("Variation Between Replicate SNPs" ) +
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=18,  family="mono")) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) 
+
+    
+
+```
+
+
+
+
+
+```{r}
+
+stat.df = variant.df2 %>%
+  select(Accession, Avg_Ct = "avg_ct.two", mapped_reads =  "mapped_reads.one") %>% 
+  distinct()
+  
+variant.df3 = variant.df2 %>%
+  group_by(Accession) %>% 
+  get_correlation(formula = AF.one ~ AF.two) %>% 
+  full_join(., stat.df)
+
+cor.test(filter(variant.df2, Accession == "SRR11939994")$AF.one, filter(variant.df2, Accession == "SRR11939994")$AF.two, method = "pearson", conf.level = 0.95)
+```
+
+```{r}
+
+multiqc.df = read.csv(multiqc.path) %>% 
+  separate(col = Sample, into = c("Accession", "Aligner"), sep = "\\.") %>% 
+  separate(col = Accession, into = c("Run", "Replicate"), sep = "-") %>% 
+  mutate(Replicate = ifelse(is.na(Replicate), 1, Replicate)) %>% 
+  mutate(Depth =( reads_mapped*average_length) / 29903) %>% 
+  filter(Aligner == "BWA")
+
+
+multiqc.df %>% 
+  ggplot(aes(x = Run,  y = reads_mapped, fill = Replicate)) +
+    geom_bar(stat = "identity", position = position_dodge()) +
+    xlab("Accession") +
+    ylab("Reads Mapped") +
+    ggtitle("Number of Mapped Reads per Sample" ) +
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=13,  family="mono")) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+    theme(axis.text.x=element_text(angle=45, hjust=1))
+
+# Calculate Read Depth: (read count * read length ) / total genome size
+
+multiqc.df %>% 
+  ggplot(aes(x = Run,  y = Depth, fill = Replicate)) + 
+    geom_bar(stat = "identity", position = position_dodge()) +
+    xlab("Accession") +
+    ylab("Depth") +
+    ggtitle("Number of Mapped Reads per Sample" ) +
+    scale_y_continuous(label=scientific_format()) +
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=13,  family="mono")) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+    theme(axis.text.x=element_text(angle=45, hjust=1))
+
+  
+# Depth v. correlation coeff. 
+
+multiqc.df %>% 
+  group_by(Run) %>% 
+  summarise(Mean_Depth = mean(Depth)) %>% 
+  select(Accession = "Run", Mean_Depth) %>% 
+  full_join(., variant.df3, by = "Accession") %>% 
+  filter(!is.na(mapped_reads)) %>% 
+  ggplot(aes(y = cor, x = Mean_Depth)) + 
+    geom_point() +
+    geom_smooth(se = F)
+    
+
+multiqc.df %>% 
+  group_by(Run) %>% 
+  summarise(Mean_Depth = mean(Depth)) %>% 
+  select(Accession = "Run", Mean_Depth) %>% 
+  full_join(., variant.df3, by = "Accession") %>% 
+  filter(!is.na(mapped_reads)) %>% 
+  ggplot(aes(y = cor, x = Avg_Ct)) + 
+    geom_point() +
+    geom_smooth(se = F)
+
+
+
+```
+
+
+
+
+
+```{r}
+
+multiqc.df2 = multiqc.df %>% 
+  group_by(Run) %>% 
+  summarise(Mean_Depth = mean(Depth)) %>% 
+  rename(Accession = "Run")
+
+variant.df3 = variant.df2 %>% 
+  select(AF.one, AF.two, Accession) %>% 
+  group_by(Accession) %>% 
+  summarize(VAR=var(AF.one,AF.two), COR = cor(AF.one,AF.two)) %>% 
+  full_join(., stat.df, by = "Accession")
+
+full_join(multiqc.df2, variant.df3) %>% 
+  mutate(VAR = ifelse(is.na(VAR), 0, VAR),
+         COR = ifelse(is.na(COR), 0, COR)) %>% 
+  filter(COR != 0) %>% 
+  ggplot(aes(x = Mean_Depth, y = COR)) + 
+    geom_point() + 
+    geom_smooth(se = F)
+  
+full_join(multiqc.df2, variant.df3) %>% 
+  mutate(VAR = ifelse(is.na(VAR), 0, VAR),
+         COR = ifelse(is.na(COR), 0, COR)) %>% 
+  filter(COR != 0) %>% 
+  ggplot(aes(x = Avg_Ct, y = COR)) + 
+    geom_point() + 
+    geom_smooth(se = F)
+```
+
+```{r}
+diff.df = variant.df2 %>% 
+  select(AF.one, AF.two, Accession) %>% 
+  mutate(AF.diff = abs(AF.one - AF.two)) %>% 
+  group_by(Accession) %>% 
+  summarize(Avg.AF.diff = mean(AF.diff)) 
+
+corr.df = full_join(multiqc.df2, variant.df3, by = "Accession") %>% 
+          mutate(VAR = ifelse(is.na(VAR), 0, VAR),
+         COR = ifelse(is.na(COR), 0, COR))
+
+full_join(diff.df, corr.df, by = "Accession") %>% 
+  ggplot(aes(x = Mean_Depth, y = Avg.AF.diff)) + 
+    geom_point() + 
+    geom_smooth(se = F)
+
+full_join(diff.df, corr.df, by = "Accession") %>% 
+  ggplot(aes(x = Avg_Ct, y = Avg.AF.diff)) + 
+    geom_point() + 
+    geom_smooth(se = F)
+  
+```
+
+
+
+
+
+
+
+
+
+
+

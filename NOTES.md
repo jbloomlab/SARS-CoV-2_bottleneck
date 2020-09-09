@@ -38,3 +38,10 @@ There are three useful papers to go over closely when thinking about how to cons
 2. [Population Bottlenecks and Intra-host Evolution during Human-to-Human Transmission of SARS-CoV-2](https://doi.org/10.1101/2020.06.26.173203)
 3. [Stochastic processes constrain the within and between host evolution of influenza virus](https://doi.org/10.7554/eLife.35962)
 
+Duplicates by re-sequencing: 
+
+For 24 samples (with Ct < 20),  Pavitra re-prepped and re-sequenced them using the same shotgun metagenomics approach as before. 
+
+This resulted in 24 total samples (each with duplicates: the original sequencing on the SRA, and the new sequencing). 
+
+One of the samples is missing a corresponding run: SpID 10110 1 10
