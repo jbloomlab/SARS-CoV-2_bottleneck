@@ -46,7 +46,7 @@ By comparing the allele frequency of variants called in both replicates, we hope
 
 ### Variant Calling 
 
-For this preliminary analysis, I aligned the samples with `BWA,` and called variants with `Varscan`. Ideally, all variant alleles will be identified by counting the number of bases over each position in the genome. However, to quickly get an idea of samples' quality, I decided to approximate this with `Varscan`. To achieve this, I removed any filters for minimum allele frequency, depth, or supporting reads. 
+For this preliminary analysis, I aligned the samples with `BWA,` and called variants with `Varscan`. Ideally, all variant alleles will be identified by counting the number of bases over each position in the genome. However, to quickly get an idea of samples' quality, I decided to approximate this with `Varscan`. I removed any filters for minimum allele frequency, depth, or supporting reads.
 
 ```{r Data Import, echo=F, warning=F, message=F}
 
@@ -226,7 +226,7 @@ These SNPs do appear to be true consensus SNPs. Two SNPs are genuinely missing f
 - `C7564T`
 - `G28376T`
 
-Therefore, the following 7 SNPs are the true consensus SNPs and should be excluded from downstream analyses. 
+Therefore, the following 7 SNPs are the true consensus SNPs and should be masked from downstream analyses. 
 ```{r True Consensus SNPs, echo=F, warning=F, message=F}
 
 ## ==== Manually select the true consensus SNPs ==== ##
@@ -241,12 +241,15 @@ variant.df = variant.df[which(!variant.df$SNP %in% true.consensus),]
 
 ```
 
-
 ### Replicate Comparison
 
-```{r Variant Comparison, echo=F, warning=F, message=F, fig.width=20, fig.height=8, fig.align='center'}
+Next, I wanted to assess the variability in the frequency of alternative alleles called in each replicate. Samples with significant variability likely have low viral template number and can be excluded from downstream analyses. Additionally, I should be able to determine which samples need to be sequenced to higher depth. 
 
-## ==== Comparison of variants between replicates ==== ##
+I removed any samples with fewer than 3 alternative alleles at sites with at least 200X coverage. The result were 14 final samples, listed below.
+
+```{r Remove Samples, echo=F, warning=F, message=F}
+
+## ==== Filter samples with too few variants ==== ##
 
 include.accession = combined.df %>% 
   filter(DP.one >= 200 & DP.two >= 200) %>% 
@@ -257,6 +260,15 @@ include.accession = combined.df %>%
 
 combined.include.df = combined.df[which(combined.df$Accession %in% include.accession),]
 
+print(include.accession)
+```
+
+
+```{r Variant Comparison, echo=F, warning=F, message=F, fig.width=10, fig.height=10, fig.align='center'}
+
+## ==== Plot alternative allele frequencies against each other ==== ##
+
+# Raw variant frequencies with line of best fit and correlation coeff.
 combined.include.df %>% 
   ggplot(aes(x = (AF.one), y = (AF.two))) + 
     facet_wrap(~Accession) +
@@ -271,8 +283,18 @@ combined.include.df %>%
     theme(legend.box.background = element_rect(colour = "black")) +
     theme(text=element_text(size=18,  family="mono")) +
     theme(plot.title = element_text(hjust = 0.5)) +
-    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) 
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+    theme(axis.text.x=element_text(angle=45, hjust=1)) 
 
+```
+
+Generally, the correlation between variant allele frequencies looks high in all samples. However, this could be skewed by the samples' heavily bimodal distribution, with high-frequency variants driving the correlation. Not many variants exist at intermediate frequencies. The variability in allele frequencies is better visualized after a log10 transformation. 
+
+```{r Variant Comparison Log10, echo=F, warning=F, message=F, fig.width=10, fig.height=10, fig.align='center'}
+
+## ==== Plot alternative allele frequencies against each other ==== ##
+
+# Raw variant frequencies with line of best fit and correlation coeff.
 combined.include.df %>% 
   ggplot(aes(x = log10(AF.one), y = log10(AF.two))) + 
     facet_wrap(~Accession) +
@@ -281,18 +303,84 @@ combined.include.df %>%
     geom_point() +
     xlab("Allele Frequency Replicate One (log10)") +
     ylab("Allele Frequency Replicate Two (log10)") +
-    ggtitle("Variation Between Replicate SNPs (log scale)" ) +
+    ggtitle("Variation Between Replicate SNPs" ) +
     theme_classic() +
     theme(legend.position="bottom", legend.box = "horizontal") +
     theme(legend.box.background = element_rect(colour = "black")) +
     theme(text=element_text(size=18,  family="mono")) +
     theme(plot.title = element_text(hjust = 0.5)) +
-    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) 
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+    theme(axis.text.x=element_text(angle=45, hjust=1))
 
 ```
 
+Even though these variants were processed with no filters, it looks like there are fewer than the variants called by varscan with filters. This is because the last round included InDels, which I have excluded from this analysis. It might make sense to see what these correlations look like with InDels included.
 
-```{r Limiting Factor, echo=F, warning=F, message=F, fig.width=20, fig.height=8, fig.align='center'}
+```{r Variant Comparison with InDels, echo=F, warning=F, message=F, fig.width=10, fig.height=10, fig.align='center'}
+
+## =========== Import the variant calls, keep indels ========== ##
+# Keep only Varscan/BWA
+variant.df.indels = read_csv(variant.filepath)  %>%
+      mutate(Type = case_when(nchar(REF) < nchar(ALT) ~ "Insertion",
+                              nchar(REF) > nchar(ALT) ~ "Deletion",
+                              nchar(REF) == nchar(ALT) ~ "SNP")) %>% 
+      filter(Aligner == "BWA", Caller == "varscan") %>% 
+      separate(col = Accession, into = c("Accession", "Replicate")) %>% 
+      mutate(Replicate = ifelse(is.na(Replicate), 1, Replicate),
+             SNP = paste0(REF, POS, ALT))
+
+# Reshape the variant data to combine replicates
+combined.df.indels = inner_join(filter(variant.df.indels, Replicate == 1),
+                        filter(variant.df.indels, Replicate == 2),
+                        by = c( "Accession", "POS", "REF", "ALT"),
+                        suffix = c(".one", ".two")) %>% 
+              select(!c("Replicate.one", "Replicate.two", "Aligner.one", "Aligner.two"))
+
+
+## ==== Mask consensus variants ==== ##
+
+# Mask the consensus SNPs
+combined.df.indels = combined.df.indels[which(!combined.df.indels$SNP.one %in% true.consensus),]
+
+## ==== Filter samples with too few variants ==== ##
+
+include.accession.indels = combined.df.indels %>% 
+  filter(DP.one >= 200 & DP.two >= 200) %>% 
+  group_by(Accession) %>% 
+  count() %>% 
+  filter(n >= 3) %>% 
+  pull(Accession)
+
+combined.include.df.indels = combined.df.indels[which(combined.df.indels$Accession %in% include.accession.indels),]
+
+
+## ==== Plot alternative allele frequencies against each other ==== ##
+
+# Raw variant frequencies with line of best fit and correlation coeff.
+combined.include.df.indels %>% 
+  ggplot(aes(x = log10(AF.one), y = log10(AF.two))) + 
+    facet_wrap(~Accession) +
+    geom_smooth(method='lm', col = "red", se = F) + 
+    stat_cor(method="pearson") +
+    geom_point() +
+    xlab("Allele Frequency Replicate One (log10)") +
+    ylab("Allele Frequency Replicate Two (log10)") +
+    ggtitle("Variation Between Replicate SNPs & InDels" ) +
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=18,  family="mono")) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+    theme(axis.text.x=element_text(angle=45, hjust=1)) 
+
+```
+
+### Correlates of Low-Quality
+
+Finally, I wanted to see which factors correlated the most strongly with low-quality replicates. The two factors I investigated were the Ct of the sample and the mean depth of the two replicates. 
+
+```{r Limiting Factor, echo=F, warning=F, message=F, fig.width=15, fig.height=7, fig.align='center'}
 
 diff.df = combined.include.df %>% 
   select(AF.one, AF.two, Accession, Avg.Ct = "avg_ct.one") %>% 
@@ -304,46 +392,68 @@ multiqc.avg.df = multiqc.df %>% group_by(Accession) %>% summarize(Mean_Depth = m
 
 limiting.df = full_join(diff.df, multiqc.avg.df, by = "Accession")
 
-## ==== Comparison between mapped reads and replicates ==== ##
-
-limiting.df %>% 
-  ggplot(aes(y = Avg.Ct, x= Avg.AF.diff)) + 
-    geom_point(size = 3) + 
-    ggtitle("Variation Between Replicate SNPs (log scale)" ) +
-    theme_classic() +
-    theme(legend.position="bottom", legend.box = "horizontal") +
-    theme(legend.box.background = element_rect(colour = "black")) +
-    theme(text=element_text(size=18,  family="mono")) +
-    theme(plot.title = element_text(hjust = 0.5)) +
-    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) 
-
-limiting.df %>% 
-  ggplot(aes(y = Mean_Depth, x = Avg.AF.diff)) + 
-    geom_point(size = 3) + 
-    ggtitle("Variation Between Replicate SNPs (log scale)" ) +
-    theme_classic() +
-    theme(legend.position="bottom", legend.box = "horizontal") +
-    theme(legend.box.background = element_rect(colour = "black")) +
-    theme(text=element_text(size=18,  family="mono")) +
-    theme(plot.title = element_text(hjust = 0.5)) +
-    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) 
-
-limiting.df %>% 
-  ggplot(aes(y = Mean_Mapped, x = Avg.AF.diff)) + 
-    geom_point(size = 3) + 
-    ggtitle("Variation Between Replicate SNPs (log scale)" ) +
-    theme_classic() +
-    theme(legend.position="bottom", legend.box = "horizontal") +
-    theme(legend.box.background = element_rect(colour = "black")) +
-    theme(text=element_text(size=18,  family="mono")) +
-    theme(plot.title = element_text(hjust = 0.5)) +
-    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) 
-
 ## ==== Comparison between Ct and replicates ==== ##
+ct.plt = limiting.df %>% 
+  ggplot(aes(x = Avg.Ct, y= Avg.AF.diff)) + 
+    geom_point(size = 3) + 
+    geom_smooth(se=F, col = "red") + 
+    ggtitle("Variation v. Ct" ) +
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=18,  family="mono")) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) 
+
+## ==== Comparison between mapped reads and replicates ==== ##
+depth.plt = limiting.df %>% 
+  ggplot(aes(x = Mean_Depth, y = Avg.AF.diff)) + 
+    geom_point(size = 3) + 
+    geom_smooth(se=F, col = "red") + 
+    ggtitle("Variation v. Mean Depth") +
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=18,  family="mono")) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) 
+
+## ==== plot both together ==== ##
+
+grid.arrange(ct.plt, depth.plt, 
+             layout_matrix = rbind(c(1, 1, 2, 2),
+                                   c(1, 1, 2, 2)))
 
 ```
 
+It seems like Ct value doesn't correlate particularly well with the average difference between variant allele frequencies. There is a more clear relationship between mean depth and the average difference in allele frequencies. 
 
+### Shared Variants
+
+```{r Pairwise}
+
+accessions.to.include = unique(combined.include.df.indels$Accession)
+results = data.frame()
+for (i in 1:length(accessions.to.include)){
+  for (j in 1:length(accessions.to.include)){
+    accession.i = accessions.to.include[i]
+    accession.j = accessions.to.include[j]
+    variants.i = filter(combined.include.df.indels, Accession == accession.i)$SNP.one
+    variants.j = filter(combined.include.df.indels, Accession == accession.j)$SNP.one
+    intersect = intersect(variants.i, variants.j)
+    n_intersect = length(intersect)
+    row = data.frame(accession.i, accession.j, n_intersect)
+    results = rbind(results, row)
+  }
+}
+
+results %>% 
+  ggplot(aes(x = accession.i, y = accession.j, fill = n_intersect)) + 
+    geom_tile() +
+    scale_fill_viridis_c(option = "B", direction = -1) +
+    theme(axis.text.x=element_text(angle=45, hjust=1)) 
+
+```
 
 
 
