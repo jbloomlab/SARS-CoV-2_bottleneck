@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo = FALSE)
 ## ==== Important file paths ==== ##
 samples.filepath =  "../../config/samples.csv" # Samples that ran analysis
 multiqc.filepath = "../../config/data/2020-08-07_multiQC-data.csv" # QC data (manually prepared from MultiQC)
-coverage.filepath = "../../results/split/" # Path to coverage data
+coverage.filepath = "../../results/split/merged.bedgraph" # Path to coverage data
 variant.filepath = "../../results/variant/variants.csv" # Combined Variant Calls
 ```
 
@@ -22,7 +22,7 @@ variant.filepath = "../../results/variant/variants.csv" # Combined Variant Calls
 ## ==== Install Required Packages ==== ##
 
 ## List of all packages needed -- non-BioManager installed
-packages = c("tidyverse", "kableExtra", "gridExtra", "grid", "UpSetR", "ggridges", "ggpubr", "scales")
+packages = c("tidyverse", "kableExtra", "gridExtra", "grid", "UpSetR", "ggridges", "ggpubr", "scales", "gplots")
 ## Check that packages are installed, if not, install them
 installed_packages <- packages %in% rownames(installed.packages())
 if (any(installed_packages == FALSE)) {
@@ -75,7 +75,14 @@ multiqc.df = read.csv(multiqc.filepath) %>%
   mutate(Replicate = ifelse(is.na(Replicate), 1, Replicate)) %>% 
   mutate(Depth =(reads_mapped*average_length) / 29903) %>% 
   filter(Aligner == "BWA") 
-  
+
+
+## =========== Coverage ========== ##
+coverage.df = read.delim(coverage.filepath) %>% 
+  mutate(POS = (Stop-Start)/2 + Start, BinSize = Stop-Start) %>% 
+  separate(col = Accession, into = c("Accession", "Replicate"), sep = "-")  %>% 
+  mutate(Replicate = ifelse(is.na(Replicate), 1, Replicate)) %>% 
+  filter(POS < 29850) # Filtering out the last 53 bases becuase of Poly-A
 
 ```
 
@@ -129,6 +136,29 @@ prec.reads.mapped.plt =  multiqc.df %>%
 grid.arrange(reads.mapped.plt, prec.reads.mapped.plt, 
              layout_matrix = rbind(c(1, 1, 2, 2),
                                    c(1, 1, 2, 2)))
+```
+
+### Coverage 
+
+I calculated the coverage over the genome in 50bp increments. I flitered out the last 53 bp (2 bins) of the genome becuase there is a polyA tract with a tremendous amount of reads that align. These skew the coverage visualization. Figuring out a better way to align this section is important.
+
+```{r Coverage, echo=F, message=F, warning=F, fig.width=15, fig.height=7, fig.align='center'}
+coverage.df %>% 
+  ggplot(aes(x = POS, y = Depth, col = Replicate)) + 
+    geom_line() + 
+    facet_wrap(~Accession) +
+    scale_y_continuous(labels=label_scientific()) +
+    scale_fill_manual(values = c("#3271a8", "#bf6021")) + 
+    xlab("Position") +
+    ylab("Depth of Coverage") +
+    ggtitle("Mean Depth of Coverage over the Genome" ) +
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=13,  family="mono")) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) 
+
 ```
 
 
@@ -430,7 +460,9 @@ It seems like Ct value doesn't correlate particularly well with the average diff
 
 ### Shared Variants
 
-```{r Pairwise}
+```{r Pairwise, echo=F, warning=F, message=F, fig.width=7, fig.height=7, fig.align='center'}
+
+combined.include.df.indels.minor = filter(combined.include.df.indels, AF.one < 0.5 | AF.two < 0.5)
 
 accessions.to.include = unique(combined.include.df.indels$Accession)
 results = data.frame()
@@ -438,8 +470,9 @@ for (i in 1:length(accessions.to.include)){
   for (j in 1:length(accessions.to.include)){
     accession.i = accessions.to.include[i]
     accession.j = accessions.to.include[j]
-    variants.i = filter(combined.include.df.indels, Accession == accession.i)$SNP.one
-    variants.j = filter(combined.include.df.indels, Accession == accession.j)$SNP.one
+    variants.i = filter(combined.include.df.indels.minor, Accession == accession.i)$SNP.one
+    variants.j = filter(combined.include.df.indels.minor, Accession == accession.j)$SNP.one
+    sum.variants = length(variants.i) + length(variants.j)
     intersect = intersect(variants.i, variants.j)
     n_intersect = length(intersect)
     row = data.frame(accession.i, accession.j, n_intersect)
@@ -447,17 +480,22 @@ for (i in 1:length(accessions.to.include)){
   }
 }
 
-results %>% 
-  ggplot(aes(x = accession.i, y = accession.j, fill = n_intersect)) + 
-    geom_tile() +
-    scale_fill_viridis_c(option = "B", direction = -1) +
-    theme(axis.text.x=element_text(angle=45, hjust=1)) 
+
+df  = spread(results, accession.i, n_intersect)[,-1]
+rownames(df) = spread(results, accession.i, n_intersect)[,1]
+df = as.matrix(df)
+
+heatmap.2(df, scale = "none", col = viridis_pal(),
+          trace = "none", density.info = "none", cexRow=1,cexCol=1,margins=c(12,8),srtCol=45)
 
 ```
 
+For the most part, the runs seem to cluster based on whether they have many variants or few variants. This is probably due to the depth. Should we make the case for sequncing to higher depth?
 
 
-
+```{r}
+df
+```
 
 
 

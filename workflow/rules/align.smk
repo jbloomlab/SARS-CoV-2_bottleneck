@@ -115,11 +115,38 @@ rule index_bam:
         samtools index {input} 
         """
 
+##========##
+
+rule bedtools_coverage:
+    """ 
+    """
+    input: bam = join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.bam"),
+           bai = join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.bam.bai"),
+           genome = join(config['index_dir']['samtools'], "SARS2.fa.fai")
+    output: join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.bedgraph")
+    params: binsize = 50
+    conda: '../envs/samtools.yml'
+    shell:
+        """
+        awk 'FS=OFS="\t"{{print $1, 0, $2}}' {input.genome} \
+            | bedtools makewindows -b - -w {params.binsize} \
+            | bedtools coverage -a stdin -b {input.bam} -mean \
+            > {output}
+            
+        sed -i "s/$/\t{wildcards.accession}/" {output} 
+                       
+        """
 
 
-
-
-
-
-
+rule merge_coverage:
+    """ 
+    """
+    input: expand(join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.bedgraph"),accession=pd.read_csv(config['samples']['file'])['Run'], aligner=['BWA'])
+    output: join(config['split_dir'], "merged.bedgraph")
+    params: header=temp(join(config['split_dir'], "merged.bedgraph.tmp"))
+    shell:
+        """
+        cat {input} > {params.header}
+        awk 'BEGIN{{print "Name\tStart\tStop\tDepth\tAccession"}}1' {params.header} > {output}
+        """
 
