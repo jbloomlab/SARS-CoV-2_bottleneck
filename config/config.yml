@@ -68,6 +68,7 @@ realign_dir: results/realign
 trinity_dir: results/trinity
 vicuna_dir: results/vicuna
 consensus_dir: results/consensus
+pileup_dir: results/pileup
 
 # ++ Config Directoties ++ #
 tools: config/tools

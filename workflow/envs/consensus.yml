@@ -1,5 +1,5 @@
 channels:
   - bioconda
 dependencies:
-  - samtools=1.7
+  - samtools=1.10
   - bcftools=1.10.2

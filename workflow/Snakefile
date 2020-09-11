@@ -28,7 +28,8 @@ include: "rules/common.smk"
 rule all:
     input: 
         join(config['variant_dir'], "variants.csv"),
-        join(config['variant_dir'], "raw-variants.csv"),
+        #join(config['variant_dir'], "raw-variants.csv"),
+        join(config['pileup_dir'], "raw-variants.csv"),
         join(config['qc_dir'], 'multiqc'),
         join(config['split_dir'], "merged.bedgraph")
         #join(config['consensus_dir'], "all_samples_consensus.fa")
@@ -50,5 +51,6 @@ include: "rules/trim.smk"
 include: "rules/ref.smk"
 include: "rules/align.smk"
 include: "rules/variant.smk"
+include: "rules/pileup.smk"
 #include: "rules/consensus.smk"
 #include: "rules/assembly.smk"

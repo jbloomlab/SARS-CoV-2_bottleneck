@@ -15,6 +15,8 @@ samples.filepath =  "../../config/samples.csv" # Samples that ran analysis
 multiqc.filepath = "../../config/data/2020-08-07_multiQC-data.csv" # QC data (manually prepared from MultiQC)
 coverage.filepath = "../../results/split/merged.bedgraph" # Path to coverage data
 variant.filepath = "../../results/variant/variants.csv" # Combined Variant Calls
+
+
 ```
 
 ```{r Required Packages, message=FALSE, warning=FALSE, echo=FALSE}
@@ -497,8 +499,55 @@ For the most part, the runs seem to cluster based on whether they have many vari
 df
 ```
 
+### Testing the results with mpileup parising
+
+```{r}
+output = read_csv( "/Volumes/whannon/2020/SARS-CoV-2_bottleneck/results/pileup/raw-variants.csv")
+
+SNPs.df = output %>% 
+  select(!starts_with("Ins") & !starts_with("Del")) %>% 
+  separate(col = Accession, into = c("Accession", "Replicate"), sep = "-")  %>% 
+  mutate(Replicate = ifelse(is.na(Replicate), 1, Replicate)) %>% 
+  rename(REF = "Reference Base", CONS = "Consensus Base", POS = "Position") %>% 
+  pivot_longer(cols = c("A For", "A Rev", "C For", "C Rev", "G For", "G Rev", "T For", "T Rev"), names_to = "ALT", values_to = "Count") %>% 
+  separate(col = ALT, into = c("ALT", "Strand")) %>% 
+  mutate(Strand = ifelse(Strand == "For", "+", "-"), SNP = paste0(REF, POS, ALT)) %>% 
+  mutate(AF = Count/Depth, Type = case_when(ALT != REF & ALT != CONS ~ "SNP",
+                                           ALT == REF & ALT != CONS ~ "SNP",
+                                           ALT == REF & ALT == CONS ~ "REF",
+                                           ALT != REF & ALT == CONS ~ "CONS")) %>% 
+  filter(AF > 0.01, Depth >= 200, Type == "SNP") %>% 
+  arrange(-AF)
+
+## ---------- ##
+
+# Reshape the variant data to combine replicates
+combined.pileup.df = inner_join(filter(SNPs.df, Replicate == 1),
+                        filter(SNPs.df, Replicate == 2),
+                        by = c( "Accession", "POS", "REF", "ALT", "CONS", "Strand"),
+                        suffix = c(".one", ".two")) %>% 
+              select(!c("Replicate.one", "Replicate.two"))
 
 
+## ---------- ##
+
+combined.pileup.df  %>% 
+  ggplot(aes(x = log10(AF.one), y = log10(AF.two), col = Strand)) + 
+    facet_wrap(~Accession) +
+    geom_smooth(method='lm', se = F) + 
+    stat_cor(method="pearson") +
+    geom_point() +
+    xlab("Allele Frequency Replicate One (log10)") +
+    ylab("Allele Frequency Replicate Two (log10)") +
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=18,  family="mono")) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+    theme(axis.text.x=element_text(angle=45, hjust=1)) 
+
+```
 
 
 

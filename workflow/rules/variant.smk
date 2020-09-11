@@ -12,7 +12,7 @@ rule varscan_calling:
     params:
         tmp_snp=temp(join(config['variant_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.varscan.snp.vcf")),
         tmp_indel=temp(join(config['variant_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.varscan.indel.vcf")),
-        maxdepth=10000
+        maxdepth=0
     conda: '../envs/variant.yml'    
     shell:
         """
