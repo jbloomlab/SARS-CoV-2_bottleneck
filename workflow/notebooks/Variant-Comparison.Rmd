@@ -15,6 +15,7 @@ samples.filepath =  "../../config/samples.csv" # Samples that ran analysis
 multiqc.filepath = "../../config/data/2020-08-07_multiQC-data.csv" # QC data (manually prepared from MultiQC)
 coverage.filepath = "../../results/split/merged.bedgraph" # Path to coverage data
 variant.filepath = "../../results/variant/variants.csv" # Combined Variant Calls
+pileup.filepath = "../../results/pileup/raw-variants.csv" # Variants called from pileup files
 
 
 ```
@@ -53,6 +54,7 @@ For this preliminary analysis, I aligned the samples with `BWA,` and called vari
 ```{r Data Import, echo=F, warning=F, message=F}
 
 ## =========== Import the variant calls ========== ##
+
 # Filtering out everything but SNPs from Varscan/BWA
 variant.df = read_csv(variant.filepath)  %>%
       mutate(Type = case_when(nchar(REF) < nchar(ALT) ~ "Insertion",
@@ -71,6 +73,7 @@ combined.df = inner_join(filter(variant.df, Replicate == 1),
               select(!c("Replicate.one", "Replicate.two", "Aligner.one", "Aligner.two"))
 
 ## =========== Import the run quality information ========== ##
+
 multiqc.df = read.csv(multiqc.filepath) %>% 
   separate(col = Sample, into = c("Accession", "Aligner"), sep = "\\.") %>% 
   separate(col = Accession, into = c("Accession", "Replicate"), sep = "-") %>% 
@@ -80,11 +83,50 @@ multiqc.df = read.csv(multiqc.filepath) %>%
 
 
 ## =========== Coverage ========== ##
+
 coverage.df = read.delim(coverage.filepath) %>% 
   mutate(POS = (Stop-Start)/2 + Start, BinSize = Stop-Start) %>% 
   separate(col = Accession, into = c("Accession", "Replicate"), sep = "-")  %>% 
   mutate(Replicate = ifelse(is.na(Replicate), 1, Replicate)) %>% 
   filter(POS < 29850) # Filtering out the last 53 bases becuase of Poly-A
+
+## =========== Pileup statistics ========== ##
+
+pileup.df = read_csv(pileup.filepath)  %>% 
+  select(!starts_with("Ins") & !starts_with("Del")) %>% 
+  separate(col = Accession, into = c("Accession", "Replicate"), sep = "-")  %>% 
+  mutate(Replicate = ifelse(is.na(Replicate), 1, Replicate)) %>% 
+  rename(REF = "Reference Base", CONS = "Consensus Base", POS = "Position") %>% 
+  mutate(`A Total` = `A For` + `A Rev`,
+         `C Total` = `C For` + `C Rev`,
+         `T Total` = `T For` + `T Rev`,
+         `G Total` = `G For` + `G Rev`) %>% 
+  pivot_longer(cols = c("A For", "A Rev",
+                        "C For", "C Rev",
+                        "G For", "G Rev",
+                        "T For", "T Rev",
+                        "A Total", "C Total", "T Total", "G Total"),
+               names_to = "ALT", values_to = "Count") %>% 
+  separate(col = ALT, into = c("ALT", "Strand")) %>% 
+  mutate(Strand = case_when(Strand == "For" ~ "+",
+                            Strand == "Rev" ~  "-",
+                            Strand == "Total" ~ "+/-"),
+         SNP = paste0(REF, POS, ALT)) %>% 
+  mutate(AF = Count/Depth, Type = case_when(ALT != REF ~ "SNP",
+                                            ALT == REF ~ "REF")) %>% 
+  filter(Type == "SNP")
+
+
+# Reshape the variant data to combine replicates
+combined.pileup.df = inner_join(filter(pileup.df, Replicate == 1),
+                                filter(pileup.df, Replicate == 2),
+                                by = c( "Accession", "POS", "REF", "ALT", "CONS", "Strand"),
+                                suffix = c(".one", ".two")) %>% 
+  select(!c("Replicate.one", "Replicate.two")) %>% 
+  filter(Strand == "+/-", AF.one > 0 & AF.two > 0) %>% 
+  rename(DP.one = "Depth.one", DP.two = "Depth.two")
+
+
 
 ```
 
@@ -173,7 +215,7 @@ To identify consensus variants, I filtered for any variants that appear at great
 ```{r Consensus Variants, echo=F, warning=F, message=F, fig.align='center'}
 
 ## ==== Determine the variants present in every sample ==== ##
-consensus.df =combined.df %>% 
+consensus.df = combined.df %>% 
   filter(AF.one >= 0.5 | AF.two >= 0.5 ) %>% 
   select(SNP.one, Accession) %>% 
   group_by(SNP.one) %>% 
@@ -199,7 +241,7 @@ consensus.df %>%
     theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
     theme(axis.text.x=element_text(angle=45, hjust=1)) + 
     theme(legend.position = "none")
-    
+
 
 ```
 
@@ -270,6 +312,7 @@ print(true.consensus)
 # Mask the consensus SNPs
 combined.df = combined.df[which(!combined.df$SNP.one %in% true.consensus),]
 variant.df = variant.df[which(!variant.df$SNP %in% true.consensus),]
+combined.pileup.df = combined.pileup.df[which(!combined.pileup.df$SNP.one %in% true.consensus),]
 
 ```
 
@@ -327,15 +370,14 @@ Generally, the correlation between variant allele frequencies looks high in all 
 ## ==== Plot alternative allele frequencies against each other ==== ##
 
 # Raw variant frequencies with line of best fit and correlation coeff.
-combined.include.df %>% 
-  ggplot(aes(x = log10(AF.one), y = log10(AF.two))) + 
+combined.pileup.df %>% 
+  filter(DP.one >= 200 & DP.two >= 200 ) %>% 
+  filter(AF.one < 0.5 & AF.two < 0.5) %>% 
+  ggplot(aes(x = (AF.one), y = (AF.two))) + 
     facet_wrap(~Accession) +
     geom_smooth(method='lm', col = "red", se = F) + 
     stat_cor(method="pearson") +
     geom_point() +
-    xlab("Allele Frequency Replicate One (log10)") +
-    ylab("Allele Frequency Replicate Two (log10)") +
-    ggtitle("Variation Between Replicate SNPs" ) +
     theme_classic() +
     theme(legend.position="bottom", legend.box = "horizontal") +
     theme(legend.box.background = element_rect(colour = "black")) +
@@ -344,6 +386,15 @@ combined.include.df %>%
     theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
     theme(axis.text.x=element_text(angle=45, hjust=1))
 
+
+inner_join(combined.pileup.df,
+                  combined.df,
+                  by = c( "Accession", "POS", "REF", "ALT"),
+                  suffix = c(".pileup", ".varscan")) %>% 
+  filter(DP.one.pileup > 200) %>% 
+  ggplot(aes(x = log(AF.one.pileup), y = log(AF.one.varscan))) +
+    geom_point() +
+    geom_smooth(method='lm', col = "red", se = F)
 ```
 
 Even though these variants were processed with no filters, it looks like there are fewer than the variants called by varscan with filters. This is because the last round included InDels, which I have excluded from this analysis. It might make sense to see what these correlations look like with InDels included.
