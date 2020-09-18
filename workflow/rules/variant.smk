@@ -145,7 +145,7 @@ rule aggregate_variants:
     """
     This rule aggregates all of the variants. 
     """
-    input: expand([join(config['variant_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.{caller}.ann.csv")], accession=pd.read_csv(config['samples']['file'])['Run'], aligner=['BWA','STAR'], caller=['varscan', 'lofreq'])
+    input: expand([join(config['variant_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.{caller}.ann.csv")], accession=pd.read_csv(config['samples']['file'])['Run'], aligner=['BWA'], caller=['varscan'])
     output: join(config['variant_dir'], "variants.csv")
     run:
         paths = []
@@ -175,7 +175,7 @@ rule aggregate_raw_variants:
     """
     This rule aggregates all of the raw variants. 
     """
-    input: expand([join(config['variant_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.rawvariants.csv")], accession=pd.read_csv(config['samples']['file'])['Run'], aligner=['BWA','STAR'])
+    input: expand([join(config['variant_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.rawvariants.csv")], accession=pd.read_csv(config['samples']['file'])['Run'], aligner=['BWA'])
     output: join(config['variant_dir'], "raw-variants.csv")
     run:
         paths = []

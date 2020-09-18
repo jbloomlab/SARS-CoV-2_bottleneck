@@ -27,28 +27,10 @@ SARS2:
   gtf: ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/009/858/895/GCF_009858895.2_ASM985889v3/GCF_009858895.2_ASM985889v3_genomic.gtf.gz
   contig: NC_045512.2
 
-SARS1:
-  ref: ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/864/885/GCF_000864885.1_ViralProj15500/GCF_000864885.1_ViralProj15500_genomic.fna.gz
-  gtf: ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/864/885/GCF_000864885.1_ViralProj15500/GCF_000864885.1_ViralProj15500_genomic.gtf.gz
-  contig: NC_004718.3
-  
-MeV:
-  ref: ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/854/845/GCF_000854845.1_ViralProj15025/GCF_000854845.1_ViralProj15025_genomic.fna.gz
-  gtf: ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/854/845/GCF_000854845.1_ViralProj15025/GCF_000854845.1_ViralProj15025_genomic.gtf.gz
-  contig: NC_001498.1
-
-MeVChiTok:
-  ref: config/ref/MeVChiTok.fa
-  gtf: ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/854/845/GCF_000854845.1_ViralProj15025/GCF_000854845.1_ViralProj15025_genomic.gtf.gz
-  contig: MeVChiTok
-
 human:
   ref: ftp://ftp.ensembl.org/pub/release-99/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz
   gtf: ftp://ftp.ensembl.org/pub/release-99/gtf/homo_sapiens/Homo_sapiens.GRCh38.99.gtf.gz
 
-ferret:
-  ref: ftp://ftp.ensembl.org/pub/release-99/fasta/mustela_putorius_furo/dna/Mustela_putorius_furo.MusPutFur1.0.dna.toplevel.fa.gz
-  gtf: ftp://ftp.ensembl.org/pub/release-99/gtf/mustela_putorius_furo/Mustela_putorius_furo.MusPutFur1.0.99.gtf.gz
 
 #### ------------------------ Params ----------------------- ####
 

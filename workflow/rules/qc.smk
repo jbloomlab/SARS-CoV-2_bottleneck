@@ -36,7 +36,7 @@ rule multiqc:
                    join(config['qc_dir'], "{accession}", "{aligner}", "{accession}.{aligner}.bam.stats"),
                    join(config['qc_dir'], "{accession}", "STAR", "{accession}.STAR.Log.final.out"),
                    join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.coverage")],
-                   accession=pd.read_csv(config['samples']['file'])['Run'], aligner=['BWA','STAR'])
+                   accession=pd.read_csv(config['samples']['file'])['Run'], aligner=['BWA'])
     output: directory(join(config['qc_dir'], 'multiqc'))
     conda: '../envs/qc.yml'
     params: 

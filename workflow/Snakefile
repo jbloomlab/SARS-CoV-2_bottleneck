@@ -12,9 +12,6 @@ from snakemake.utils import min_version
 
 min_version('5.6.0')  # require `snakemake` >= 5.6.0
 
-# Allow users to fix the underlying OS via singularity.
-container: "docker://continuumio/miniconda3"
-
 #### -------------------- Configuration -------------------- ####
 
 configfile: "config/config.yml"
@@ -28,12 +25,9 @@ include: "rules/common.smk"
 rule all:
     input: 
         join(config['variant_dir'], "variants.csv"),
-        #join(config['variant_dir'], "raw-variants.csv"),
         join(config['pileup_dir'], "raw-variants.csv"),
         join(config['qc_dir'], 'multiqc'),
         join(config['split_dir'], "merged.bedgraph")
-        #join(config['consensus_dir'], "all_samples_consensus.fa")
-        #expand(join(config['trinity_dir'], "{accession}.{aligner}.trinity"), accession=pd.read_csv(config['samples']['file'])['Run'], aligner=['BWA','STAR'])
 
 rule clean:
     shell:
@@ -52,5 +46,3 @@ include: "rules/ref.smk"
 include: "rules/align.smk"
 include: "rules/variant.smk"
 include: "rules/pileup.smk"
-#include: "rules/consensus.smk"
-#include: "rules/assembly.smk"

@@ -1,9 +1,7 @@
-# Description:
-# Checks the best matched reference genome and then aligns to that 
-# reference genome for each sample.
-
-# Author:
-# Caleb Carr
+__author__ = "Caleb Carr & Will Hannon"
+__copyright__ = "Copyright 2020, Caleb Carr & Will Hannon"
+__email__ = "wwh22@uw.edu"
+__license__ = "MIT"
 
 
 # Open the input file accessed through the snakemake object
