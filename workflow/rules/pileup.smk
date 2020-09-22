@@ -18,6 +18,16 @@ rule parse_pileup:
     output: join(config['pileup_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.mpileup.csv")
     script: '../scripts/process_pileup.py'
 
+rule parse_pileup_test:
+    """
+    """
+    input: join(config['pileup_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.mpileup.txt")
+    output: join(config['pileup_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.will.mpileup.csv")
+    shell: 
+        """
+        python ../scripts/ParsePileup.py --input {input} --output {output} -si
+        """
+
 rule aggregate_pileup:
     """
     """
