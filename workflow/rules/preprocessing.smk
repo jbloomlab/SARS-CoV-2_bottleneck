@@ -86,3 +86,14 @@ rule remove_duplicates:
             OUTPUT={output.bam} METRICS_FILE={output.metrics} 
         """
 
+rule filter_virus:
+    input:
+        
+    output:
+    params:
+    conda:
+    shell:
+        """
+        bbduk.sh -Xmx80g in=$processed_fastq_old out=$unmatched_fastq outm=$processed_fastq ref=$ref_fasta k=31 hdist=2 stats=$filter_stats overwrite=TRUE t=$SLURM_CPUS_PER_TASK
+        """
+

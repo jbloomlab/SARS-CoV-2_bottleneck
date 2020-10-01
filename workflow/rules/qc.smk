@@ -13,8 +13,8 @@ rule fastqc:
 rule samtools_stats:
     """ Calculate bam stats with samtools
     """
-    input: join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.bam"),
-    output: join(config['qc_dir'], "{accession}", "{aligner}", "{accession}.{aligner}.bam.stats")
+    input: join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.bam")
+    output: join(config['qc_dir'], "{accession}", "{aligner}", "{accession}.{aligner}.virus.bam.stats")
     conda: '../envs/samtools.yml'
     shell: "samtools stats {input} > {output}"
 
@@ -33,7 +33,7 @@ rule multiqc:
     """
     input: 
         qc=expand([join(config['qc_dir'], '{accession}/fastqc'),
-                   join(config['qc_dir'], "{accession}", "{aligner}", "{accession}.{aligner}.bam.stats"),
+                   join(config['qc_dir'], "{accession}", "{aligner}", "{accession}.{aligner}.virus.bam.stats"),
                    join(config['qc_dir'], "{accession}", "STAR", "{accession}.STAR.Log.final.out"),
                    join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.coverage")],
                    accession=pd.read_csv(config['samples']['file'])['Run'], aligner=['BWA'])

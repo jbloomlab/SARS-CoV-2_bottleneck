@@ -139,3 +139,4 @@ results/
 /tmp
 *.out
 *.Rhistory
+**.RDS

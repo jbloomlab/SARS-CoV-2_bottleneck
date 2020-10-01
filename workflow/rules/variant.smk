@@ -24,7 +24,7 @@ rule varscan_calling:
                     --output-vcf 1 \
                     --min-coverage 1 \
                     --min-reads2 1 \
-                    --min-avg-qual 20 \
+                    --min-avg-qual 30 \
                     --min-var-freq 0.0 > {params.tmp_snp}
 
             samtools mpileup -d {params.maxdepth} -f {input.genome} \

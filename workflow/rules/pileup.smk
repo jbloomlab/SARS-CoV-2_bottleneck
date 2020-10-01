@@ -9,7 +9,7 @@ rule generate_pileup:
         genome = join(config['index_dir']['samtools'], "SARS2.fa")
     output: join(config['pileup_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.mpileup.txt")
     conda: '../envs/samtools.yml'
-    shell: "samtools mpileup -d 0 -E -q 20 -Q 20 -f {input.genome} {input.bam} -O -s --reverse-del -a -o {output}"
+    shell: "samtools mpileup -d 0 -E -q 30 -Q 30 -f {input.genome} {input.bam} -O -s --reverse-del -a -o {output}"
 
 rule parse_pileup:
     """
@@ -25,7 +25,7 @@ rule parse_pileup_test:
     output: join(config['pileup_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.will.mpileup.csv")
     shell: 
         """
-        python ../scripts/ParsePileup.py --input {input} --output {output} -si
+        python workflow/scripts/ParsePileup.py --input {input} --output {output} -si
         """
 
 rule aggregate_pileup:

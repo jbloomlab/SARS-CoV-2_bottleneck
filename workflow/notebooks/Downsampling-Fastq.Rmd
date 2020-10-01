@@ -54,7 +54,7 @@ variant.df = read_csv(variant.filepath)  %>%
                               nchar(REF) > nchar(ALT) ~ "Deletion",
                               nchar(REF) == nchar(ALT) ~ "SNP")) %>% 
       filter(Aligner == "BWA", Caller == "varscan", Type == "SNP") %>% 
-      separate(col = Accession, into = c("Accession", "Replicate","Percent")) %>% 
+      separate(col = Accession, into = c("Accession", "Replicate", "Percent")) %>% 
       mutate(Replicate = ifelse(is.na(Replicate), 1, Replicate),
              SNP = paste0(REF, POS, ALT),
              Percent = ifelse(is.na(Percent), 100, Percent))
@@ -141,7 +141,7 @@ combined.df.indels = full_join(filter(variant.df.indels, Replicate == 1),
 
 ```{r}
 
-true.consensus = c("A23403G","C1059T",  "C14408T", "C241T",   "C3037T",  "G25563T", "G11083T")
+true.consensus = c("A23403G", "C1059T",  "C14408T", "C241T",   "C3037T",  "G25563T", "G11083T")
 
 # Mask the consensus SNPs
 combined.df = combined.df[which(!combined.df$SNP.one %in% true.consensus),]
@@ -156,9 +156,9 @@ combined.df.indels = combined.df.indels[which(!combined.df.indels$SNP.one %in% t
 combined.df$Percent = factor(combined.df$Percent, levels = c("25", "50", "75", "100"))
   
 combined.df %>% 
-  ggplot(aes(x = log10(AF.one), y = log10(AF.two), group = Percent, col = Percent)) + 
+  ggplot(aes(x = (AF.one), y = (AF.two), group = Percent, col = Percent)) + 
     facet_grid(rows = vars(Accession), cols = vars(Percent)) +
-    geom_point(col = "gray") +
+    geom_point(col = "#525252") +
     geom_smooth(method='lm', se = F) + 
     stat_cor(method="pearson") +
     xlab("Allele Frequency Replicate One (Log10)") +
