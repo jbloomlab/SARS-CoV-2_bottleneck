@@ -35,10 +35,15 @@ human:
 
 max_cpu: 24
 
+threads:
+  max_cpu: 24
+  fastq_download: 8
+
 #### ------------------------- Dirs ------------------------ ####
 
 # ++ Results Directoties ++ #
-sra_dir: results/sra
+fastq: results/fastq
+
 qc_dir: results/qc
 trim_dir: results/trim
 align_dir: results/align

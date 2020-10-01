@@ -9,7 +9,7 @@ rule fetch_fastq_se:
     """
     output: join(config['fastq_dir'], "{accession}", "{accession}.fastq.gz")
     params: join(config['fastq_dir'], "{accession}")
-    threads: config['threads']['fastq']
+    threads: config['threads']['fastq_download']
     conda: '../envs/fastq.yml'
     script: '../scripts/fetch_fastq.py'
 
@@ -20,6 +20,6 @@ rule fetch_fastq_pe:
     output: [join(config['fastq_dir'], "{accession}", "{accession}_1.fastq.gz"),
              join(config['fastq_dir'], "{accession}", "{accession}_2.fastq.gz")]
     params: join(config['fastq_dir'], "{accession}")
-    threads: config['threads']['fastq']
+    threads: config['threads']['fastq_download']
     conda: '../envs/fastq.yml'
     script: '../scripts/fetch_fastq.py'

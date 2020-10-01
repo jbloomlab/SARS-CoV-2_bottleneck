@@ -41,7 +41,7 @@ rule clean:
 
 include: "rules/reference.smk"
 include: "rules/index-reference.smk"
-
+include: "rules/fastq-download.smk"
 
 include: "rules/tools.smk"
 include: "rules/sra.smk"
