@@ -11,7 +11,7 @@ snpeff: http://sourceforge.net/projects/snpeff/files/snpEff_latest_core.zip
 #### ------------------------- Samples ------------------------ ####
 
 samples: 
-  file: config/samples.csv
+  file: config/samples_trial.csv
   public: TRUE
 
 #### ------------------------ Genomes ----------------------- ####
@@ -42,7 +42,7 @@ threads:
 #### ------------------------- Dirs ------------------------ ####
 
 # ++ Results Directoties ++ #
-fastq: results/fastq
+fastq_dir: results/fastq
 
 qc_dir: results/qc
 trim_dir: results/trim

@@ -1,8 +1,9 @@
 ### ======= Index reference genomes in specified format ======= ###
-
+#
 # Author: Will Hannon 
 # Email: wwh22@uw.edu
 # Date: 10/30/2020
+#
 
 rule bwa_index:
     """ Index the genome with `BWA` before mapping.

@@ -1,8 +1,9 @@
 ### ======= Download and format reference genomes and annotations ======= ###
-
+#
 # Author: Will Hannon 
 # Email: wwh22@uw.edu
 # Date: 10/30/2020
+#
 
 rule get_ref:
     """ Download the reference genome fasta.

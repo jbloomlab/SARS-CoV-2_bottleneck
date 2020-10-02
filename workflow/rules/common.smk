@@ -21,10 +21,10 @@ def get_avaliable_fastqs(wildcards):
     # If the layout is single-ended.
     if single_ended(wildcards.accession):
         # Return the target files.
-        return expand(join(config["sra_dir"], "{accession}", "{accession}.fastq"), accession=wildcards.accession)
+        return expand(join(config["sra_dir"], "{accession}", "{accession}.fastq.gz"), accession=wildcards.accession)
     # Otherwise the layout is assumed to be paired-ended. 
-    return expand([join(config["sra_dir"], "{accession}", "{accession}_1.fastq"),
-                   join(config["sra_dir"], "{accession}", "{accession}_2.fastq")], accession=wildcards.accession)
+    return expand([join(config["sra_dir"], "{accession}", "{accession}_1.fastq.gz"),
+                   join(config["sra_dir"], "{accession}", "{accession}_2.fastq.gz")], accession=wildcards.accession)
 
 
 def get_avaliable_trimmed_fastqs(wildcards):
@@ -35,10 +35,10 @@ def get_avaliable_trimmed_fastqs(wildcards):
     # If the layout is single-ended.
     if single_ended(wildcards.accession):
         # Return the target files.
-        return expand(join(config["trim_dir"], "{accession}", "{accession}.trimmed.fastq"), accession=wildcards.accession)
+        return expand(join(config["trim_dir"], "{accession}", "{accession}.trimmed.fastq.gz"), accession=wildcards.accession)
     # Otherwise the layout is assumed to be paired-ended. 
-    return expand([join(config["trim_dir"], "{accession}", "{accession}_1.trimmed.fastq"),
-                   join(config["trim_dir"], "{accession}", "{accession}_2.trimmed.fastq")], accession=wildcards.accession)
+    return expand([join(config["trim_dir"], "{accession}", "{accession}_1.trimmed.fastq.gz"),
+                   join(config["trim_dir"], "{accession}", "{accession}_2.trimmed.fastq.gz")], accession=wildcards.accession)
      
                     
 def get_BWA_ref_genome(wildcards):

@@ -1,4 +1,9 @@
 ### ======= Download and assembly of tools (independent of `conda`) ======= ###
+#
+# Author: Will Hannon 
+# Email: wwh22@uw.edu
+# Date: 10/30/2020
+#
 
 rule get_varscan:
     """ Download Varscan into Tools directory. wget from github. 
@@ -64,8 +69,3 @@ rule build_SnpEff:
         """
 
 
-"""
-It's worth looking into using a gff file instead of gtf. It 
-seems like it works fine with the gtf, so it might not be
-that important. 
-"""

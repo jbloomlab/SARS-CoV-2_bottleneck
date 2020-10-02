@@ -24,11 +24,12 @@ include: "rules/common.smk"
 
 rule all:
     input: 
-        join(config['variant_dir'], "variants.csv"),
-        join(config['pileup_dir'], "raw-variants.csv"),
-        join(config['qc_dir'], 'multiqc'),
-        join(config['split_dir'], "merged.bedgraph"),
-        expand(join(config['pileup_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.will.mpileup.csv"), accession=pd.read_csv(config['samples']['file'])['Run'], aligner=['BWA'])
+        expand(join(config['fastq_dir'], "{accession}", "{accession}.fastq.gz"), accession=pd.read_csv(config['samples']['file'])['Run'])
+        #join(config['variant_dir'], "variants.csv"),
+        #join(config['pileup_dir'], "raw-variants.csv"),
+        #join(config['qc_dir'], 'multiqc'),
+        #join(config['split_dir'], "merged.bedgraph"),
+        #expand(join(config['pileup_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.will.mpileup.csv"), accession=pd.read_csv(config['samples']['file'])['Run'], aligner=['BWA'])
 
 rule clean:
     shell:
@@ -42,11 +43,12 @@ rule clean:
 include: "rules/reference.smk"
 include: "rules/index-reference.smk"
 include: "rules/fastq-download.smk"
-
 include: "rules/tools.smk"
-include: "rules/sra.smk"
+
+include: "rules/trim-adapters.smk"
+
+
 include: "rules/qc.smk"
-include: "rules/trim.smk"
 include: "rules/align.smk"
 include: "rules/variant.smk"
 include: "rules/pileup.smk"
