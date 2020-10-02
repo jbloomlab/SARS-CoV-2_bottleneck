@@ -36,7 +36,7 @@ human:
 max_cpu: 24
 
 threads:
-  max_cpu: 24
+  max_cpu: 64
   fastq_download: 8
 
 #### ------------------------- Dirs ------------------------ ####

@@ -1,4 +1,9 @@
 ### ======= Python utilities for running the pipeline ======= ###
+#
+# Author: Will Hannon 
+# Email: wwh22@uw.edu
+# Date: 10/30/2020
+#
 
 def single_ended(Run):
     """
@@ -40,7 +45,22 @@ def get_avaliable_trimmed_fastqs(wildcards):
     return expand([join(config["trim_dir"], "{accession}", "{accession}_1.trimmed.fastq.gz"),
                    join(config["trim_dir"], "{accession}", "{accession}_2.trimmed.fastq.gz")], accession=wildcards.accession)
      
-                    
+
+def get_avaliable_filtered_fastqs(wildcards):
+    """
+    This function fills in the avaliable filtered fastq's 
+    depending on the library layout. 
+    """
+    # If the layout is single-ended.
+    if single_ended(wildcards.accession):
+        # Return the target files.
+        return expand(join(config["filter_dir"], "{accession}", "{accession}.filtered.fastq.gz"), accession=wildcards.accession)
+    # Otherwise the layout is assumed to be paired-ended. 
+    return expand([join(config["filter_dir"], "{accession}", "{accession}_1.filtered.fastq.gz"),
+                   join(config["filter_dir"], "{accession}", "{accession}_2.filtered.fastq.gz")], accession=wildcards.accession)
+     
+
+
 def get_BWA_ref_genome(wildcards):
     """
     This function determine which genomes to use or generate

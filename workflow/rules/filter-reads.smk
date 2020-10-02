@@ -6,16 +6,23 @@
 #
 
 rule filter_reads_se:
-    """ Filter out viral reads using kmer filtering w/ BBduk Single-Ended.
+    """ 
+    Filter out reads using kmer filtering w/ BBduk Single-Ended implementation.
+    This will only work for the viral genomes because larger genomes
+    begin to require huge amounts of heap memory.
+
+    Genome is determined from the `samples.csv` file configuration.
+    The genomes are indexed with samtools. 
     """
     input: 
         reads=get_avaliable_trimmed_fastqs,
-        genome=get_BWA_ref_genome
+        genome=get_genome
     output: 
         matched=join(config['filter_dir'], "{accession}", "{accession}.filtered.fastq.gz"),
         unmatched=join(config['filter_dir'], "{accession}", "{accession}.unfiltered.fastq.gz"),
         stats=join(config['filter_dir'], "{accession}", "{accession}.filter.stats.txt")
     threads: config['threads']['max_cpu']
+    params: error=join(config['filter_dir'], "{accession}", "{accession}.error.log")
     conda: '../envs/filter.yml'
     shell:
         """
@@ -28,11 +35,18 @@ rule filter_reads_se:
             hdist=2 \
             stats={output.stats} \
             overwrite=TRUE \
-            t={threads}
+            t={threads} \
+            &> {params.error}
         """
 
 rule filter_reads_pe:
-    """ Filter out viral reads using kmer filtering w/ BBduk Paired-end.
+    """ 
+    Filter out reads using kmer filtering w/ BBduk Paried-End implementation.
+    This will only work for the viral genomes because larger genomes
+    begin to require huge amounts of heap memory.
+
+    Genome is determined from the `samples.csv` file configuration.
+    The genomes are indexed with samtools. 
     """
     input: 
         reads=get_avaliable_trimmed_fastqs,
@@ -44,10 +58,11 @@ rule filter_reads_pe:
                    join(config['filter_dir'], "{accession}", "{accession}_2.unfiltered.fastq.gz")],
         stats=join(config['filter_dir'], "{accession}", "{accession}.filter.stats.txt")
     threads: config['threads']['max_cpu']
+    params: error=join(config['filter_dir'], "{accession}", "{accession}.error.log")
     conda: '../envs/filter.yml'
     shell:
         """
-        bbduk.sh -Xmx80g \
+        bbduk.sh -Xmx100g \
             in1={input.reads[0]} \
             in2={input.reads[1]} \
             out1={output.unmatched[0]} \
@@ -59,5 +74,6 @@ rule filter_reads_pe:
             hdist=2 \
             stats={output.stats} \
             overwrite=TRUE \
-            t={threads}
+            t={threads} \
+            &> {params.error}
         """

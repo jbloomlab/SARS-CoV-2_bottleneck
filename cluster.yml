@@ -9,6 +9,24 @@ __default__:
   user: wwh22@uw.edu
   mailtype: END
 
+filter_reads_se:
+  cpus: 32
+  partition: campus-new
+  time: 0-2
+  mem: 100000
+  name: "{rule}"
+  user: wwh22@uw.edu
+  mailtype: END
+
+filter_reads_pe:
+  cpus: 32
+  partition: campus-new
+  time: 0-2
+  mem: 100000
+  name: "{rule}"
+  user: wwh22@uw.edu
+  mailtype: END
+
 bwa_mem:
   cpus: 16
   partition: campus-new
