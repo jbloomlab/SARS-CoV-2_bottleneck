@@ -6,7 +6,7 @@ def single_ended(Run):
     """
     # Get the Library Layout
     layout = pd.read_csv(config['samples']['file']).set_index('Run').at[Run, 'LibraryLayout']
-    # Conditional
+    # Check the layout
     if layout == "SINGLE":
         return True
     else:
@@ -21,10 +21,10 @@ def get_avaliable_fastqs(wildcards):
     # If the layout is single-ended.
     if single_ended(wildcards.accession):
         # Return the target files.
-        return expand(join(config["sra_dir"], "{accession}", "{accession}.fastq.gz"), accession=wildcards.accession)
+        return expand(join(config["fastq_dir"], "{accession}", "{accession}.fastq.gz"), accession=wildcards.accession)
     # Otherwise the layout is assumed to be paired-ended. 
-    return expand([join(config["sra_dir"], "{accession}", "{accession}_1.fastq.gz"),
-                   join(config["sra_dir"], "{accession}", "{accession}_2.fastq.gz")], accession=wildcards.accession)
+    return expand([join(config["fastq_dir"], "{accession}", "{accession}_1.fastq.gz"),
+                   join(config["fastq_dir"], "{accession}", "{accession}_2.fastq.gz")], accession=wildcards.accession)
 
 
 def get_avaliable_trimmed_fastqs(wildcards):

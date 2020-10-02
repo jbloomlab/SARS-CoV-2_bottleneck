@@ -24,7 +24,8 @@ include: "rules/common.smk"
 
 rule all:
     input: 
-        expand(join(config['fastq_dir'], "{accession}", "{accession}.fastq.gz"), accession=pd.read_csv(config['samples']['file'])['Run'])
+        expand(join(config['filter_dir'], "{accession}", "{accession}.filtered.fastq.gz"),
+               accession=pd.read_csv(config['samples']['file'])['Run'])
         #join(config['variant_dir'], "variants.csv"),
         #join(config['pileup_dir'], "raw-variants.csv"),
         #join(config['qc_dir'], 'multiqc'),
@@ -40,12 +41,12 @@ rule clean:
         """
 #### ------------------------ Rules ------------------------ ####
 
-include: "rules/reference.smk"
+include: "rules/download-reference.smk"
 include: "rules/index-reference.smk"
-include: "rules/fastq-download.smk"
-include: "rules/tools.smk"
-
+include: "rules/download-fastq.smk"
+include: "rules/download-tools.smk"
 include: "rules/trim-adapters.smk"
+include: "rules/filter-reads.smk"
 
 
 include: "rules/qc.smk"

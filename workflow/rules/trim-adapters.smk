@@ -1,6 +1,11 @@
 ### ======= Trim adaptors, poly A tails, and low quality reads ======= ###
+#
+# Author: Will Hannon 
+# Email: wwh22@uw.edu
+# Date: 10/30/2020
+#
 
-rule trim_se:
+rule trim_adapters_se:
     """
     Fast all-in-one processing of single `fastq` files. 
     Automatic adaptor trimming,
@@ -28,7 +33,7 @@ rule trim_se:
             --json {output.json}
         """
 
-rule trim_pe:
+rule trim_adapters_pe:
     """
     Fast all-in-one processing of single `fastq` files. 
     Automatic adaptor trimming,

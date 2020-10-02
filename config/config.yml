@@ -43,9 +43,11 @@ threads:
 
 # ++ Results Directoties ++ #
 fastq_dir: results/fastq
+trim_dir: results/trimmed
+filter_dir: results/filtered
+
 
 qc_dir: results/qc
-trim_dir: results/trim
 align_dir: results/align
 split_dir: results/split
 dedup_dir: results/dedup
