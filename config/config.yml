@@ -33,11 +33,19 @@ human:
 
 #### ------------------------ Params ----------------------- ####
 
-max_cpu: 24
-
+# Desired thread count for each rule
 threads:
-  max_cpu: 64
+  max_cpu: 32
   fastq_download: 8
+
+# Filter fastq with kmer or align to multiple genomes
+filter_reads: TRUE
+
+# Remove duplicates with Picard
+remove_duplicates: false
+
+# Bin size for coverage graphs
+bin_size: 50
 
 #### ------------------------- Dirs ------------------------ ####
 
@@ -45,12 +53,11 @@ threads:
 fastq_dir: results/fastq
 trim_dir: results/trimmed
 filter_dir: results/filtered
-
-
+align_dir: results/aligned
 qc_dir: results/qc
-align_dir: results/align
-split_dir: results/split
-dedup_dir: results/dedup
+coverage_dir: results/coverage
+
+
 variant_dir: results/variant
 realign_dir: results/realign
 trinity_dir: results/trinity

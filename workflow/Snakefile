@@ -24,12 +24,12 @@ include: "rules/common.smk"
 
 rule all:
     input: 
-        expand(join(config['filter_dir'], "{accession}", "{accession}.filtered.fastq.gz"),
-               accession=pd.read_csv(config['samples']['file'])['Run'])
+        expand(join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.{split}.sorted.marked.bam.bai"),
+               accession=pd.read_csv(config['samples']['file'])['Run'], aligner=["BWA"], split=['virus']),
         #join(config['variant_dir'], "variants.csv"),
         #join(config['pileup_dir'], "raw-variants.csv"),
-        #join(config['qc_dir'], 'multiqc'),
-        #join(config['split_dir'], "merged.bedgraph"),
+        join(config['qc_dir'], 'multiqc'),
+        join(config['coverage_dir'], "merged.bedgraph")
         #expand(join(config['pileup_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.will.mpileup.csv"), accession=pd.read_csv(config['samples']['file'])['Run'], aligner=['BWA'])
 
 rule clean:
@@ -42,14 +42,15 @@ rule clean:
 #### ------------------------ Rules ------------------------ ####
 
 include: "rules/download-reference.smk"
-include: "rules/index-reference.smk"
-include: "rules/download-fastq.smk"
 include: "rules/download-tools.smk"
+include: "rules/download-fastq.smk"
+include: "rules/index-reference.smk"
 include: "rules/trim-adapters.smk"
 include: "rules/filter-reads.smk"
-
-
+include: "rules/align-reads.smk"
+include: "rules/calculate-coverage.smk"
 include: "rules/qc.smk"
-include: "rules/align.smk"
-include: "rules/variant.smk"
-include: "rules/pileup.smk"
+
+
+#include: "rules/variant.smk"
+#include: "rules/pileup.smk"

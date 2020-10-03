@@ -3,6 +3,8 @@
 """ 
 ParsePileup.py: This program takes a pileup format file
 from samtools and parses to user specificiation.
+
+python workflow/scripts/ParsePileup.py --input {input} --output {output} -si
 """
 
 __author__      = "William Hannon"

@@ -18,33 +18,6 @@ rule bwa_index:
         bwa index -a {params.algorithm} {output}
         """
 
-rule star_index:
-    """ Index the virus & host genome with `STAR` before mapping.
-    """
-    input: 
-        ref=join(config['ref_dir'], '{genome}.fa'),
-        gtf=join(config['gtf_dir'], '{genome}.gtf')
-    output: directory(join(config['index_dir']['star'], "{genome}"))
-    params: 
-        Nbases=SAindexNbases,
-        sjdb=sjdbGTFfile
-    threads: config['max_cpu']
-    conda: '../envs/align.yml'
-    shell:
-        """
-        # Make the output directory specified in the config file.
-        mkdir -p {output}
-
-        # run STAR generate genome command
-        STAR --runThreadN {threads} \
-            --runMode genomeGenerate \
-            --genomeDir {output} \
-            --genomeFastaFiles {input.ref} \
-            --genomeSAindexNbases {params.Nbases} \
-            --limitGenomeGenerateRAM 180000000000 \
-            {params.sjdb} 
-        """
-
 rule samtools_index:
     """ Index genome with `samtools` for `BSQR`. 
     """

@@ -20,7 +20,7 @@ rule filter_reads_se:
     output: 
         matched=join(config['filter_dir'], "{accession}", "{accession}.filtered.fastq.gz"),
         unmatched=join(config['filter_dir'], "{accession}", "{accession}.unfiltered.fastq.gz"),
-        stats=join(config['filter_dir'], "{accession}", "{accession}.filter.stats.txt")
+        stats=join(config['qc_dir'], "{accession}", "BBduk", "{accession}.filter.stats")
     threads: config['threads']['max_cpu']
     params: error=join(config['filter_dir'], "{accession}", "{accession}.error.log")
     conda: '../envs/filter.yml'
@@ -50,19 +50,19 @@ rule filter_reads_pe:
     """
     input: 
         reads=get_avaliable_trimmed_fastqs,
-        genome=get_BWA_ref_genome
+        genome=get_genome
     output: 
         matched=[join(config['filter_dir'], "{accession}", "{accession}_1.filtered.fastq.gz"), 
                  join(config['filter_dir'], "{accession}", "{accession}_2.filtered.fastq.gz")],
         unmatched=[join(config['filter_dir'], "{accession}", "{accession}_1.unfiltered.fastq.gz"), 
                    join(config['filter_dir'], "{accession}", "{accession}_2.unfiltered.fastq.gz")],
-        stats=join(config['filter_dir'], "{accession}", "{accession}.filter.stats.txt")
+        stats=join(config['qc_dir'], "{accession}", "BBduk", "{accession}.filter.stats")
     threads: config['threads']['max_cpu']
     params: error=join(config['filter_dir'], "{accession}", "{accession}.error.log")
     conda: '../envs/filter.yml'
     shell:
         """
-        bbduk.sh -Xmx100g \
+        bbduk.sh -Xmx80g \
             in1={input.reads[0]} \
             in2={input.reads[1]} \
             out1={output.unmatched[0]} \

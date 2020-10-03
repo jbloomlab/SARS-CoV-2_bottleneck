@@ -20,8 +20,8 @@ def single_ended(Run):
 
 def get_avaliable_fastqs(wildcards):
     """
-    This function fills in the avaliable fastq's depending on 
-    the library layout. 
+    This function fills in the avaliable fastqs depending on 
+    the library layout for the rule `trim_adapters_(pe | se)`. 
     """
     # If the layout is single-ended.
     if single_ended(wildcards.accession):
@@ -34,8 +34,8 @@ def get_avaliable_fastqs(wildcards):
 
 def get_avaliable_trimmed_fastqs(wildcards):
     """
-    This function fills in the avaliable trimmed fastq's 
-    depending on the library layout. 
+    This function fills in the avaliable trimmed fastqs 
+    depending on the library layout for the rule `filter_reads_(pe | se)`. 
     """
     # If the layout is single-ended.
     if single_ended(wildcards.accession):
@@ -61,7 +61,7 @@ def get_avaliable_filtered_fastqs(wildcards):
      
 
 
-def get_BWA_ref_genome(wildcards):
+def get_hybrid_genome(wildcards):
     """
     This function determine which genomes to use or generate
     for alignment of a given run using the `samples.csv` file.
@@ -80,26 +80,7 @@ def get_BWA_ref_genome(wildcards):
     return expand(join(config['index_dir']['bwa'], '{virus}.{host}.fa'), virus=virusname, host=hostname)
 
 
-def get_STAR_ref_genome(wildcards):
-    """
-    This function determine which genomes to use or generate
-    for alignment of a given run using the `samples.csv` file.
-    """
-    # Read the metadata into Pandas dataframe
-    samples_df = pd.read_csv(config['samples']['file'])
-    # Get the viral genome for a given accession
-    virusname = samples_df.loc[samples_df.Run == wildcards.accession, ["Virus"]].values.flatten().tolist()[0]
-    # Get the host genome for a given accession
-    hostname = samples_df.loc[samples_df.Run == wildcards.accession, ["Host"]].values.flatten().tolist()[0]
-    # Handle sequences that do not need to be mapped to host\
-    if hostname == 'none':
-        # Virus only genome - just downloaded 
-        return expand(join(config['index_dir']['star'], '{virus}'), virus=virusname)
-    # Virus and host genome - downloaded and concatenated
-    return expand(join(config['index_dir']['star'], '{virus}.{host}'), virus=virusname, host=hostname)
-
-
-def get_genome(wildcards):
+def get_genome(wildcards, index = "samtools"):
     """ Function to get the correct genome for variant calling, indexed with samtools. 
     """
     # Read the metadata into Pandas dataframe
@@ -107,52 +88,11 @@ def get_genome(wildcards):
     # Get the viral genome for a given accession
     virusname = samples_df.loc[samples_df.Run == wildcards.accession, ["Virus"]].values.flatten().tolist()[0]
     # Return the viral genome file
-    return expand(join(config['index_dir']['samtools'], '{virus}.fa'), virus=virusname)
+    if index == "samtools": 
+        return expand(join(config['index_dir']['samtools'], '{virus}.fa'), virus=virusname)
+    elif index == "BWA":
+        return expand(join(config['index_dir']['bwa'], '{virus}.fa'), virus=virusname)
 
-
-def SAindexNbases(wildcards):
-    """
-    This function determines the appropriate value of the 
-    parameter genomeSAindexNbases based on the genome size
-    for `STAR_index`. 
-    """
-    # Read the metadata into Pandas dataframe
-    samples_df = pd.read_csv(config['samples']['file'])
-    # Get the unqiue host/virus pairs
-    genomes = list(set(list(zip(samples_df.Virus, samples_df.Host))))
-    # Remove the ones with 'none', these are the true genomes
-    genomes = [combo for combo in genomes if 'none' not in combo]
-    # Join into the right configuration 
-    genomes = ['.'.join(combo) for combo in genomes]
-    # Check if wildcards.genome is as joined genome
-    if wildcards.genome in genomes:
-        # Default genomeSAindexNbases
-        return 14
-    # genomeSAindexNbases for small genomes
-    return 8
-
-def sjdbGTFfile(wildcards):
-    """
-    This function determines the appropriate value of the 
-    parameter genomeSAindexNbases based on the genome size
-    for `STAR_index`. 
-    """
-    # Read the metadata into Pandas dataframe
-    samples_df = pd.read_csv(config['samples']['file'])
-    # Get the unqiue host/virus pairs
-    genomes = list(set(list(zip(samples_df.Virus, samples_df.Host))))
-    # Remove the ones with 'none', these are the true genomes
-    genomes = [combo for combo in genomes if 'none' not in combo]
-    # Join into the right configuration 
-    genomes = ['.'.join(combo) for combo in genomes]
-    # Check if wildcards.genome is as joined genome
-    if wildcards.genome in genomes:
-        # Generate the gtf file
-        gtf = join(config['gtf_dir'], '%s.gtf' % wildcards.genome)
-        # Default genomeSAindexNbases
-        return "--sjdbGTFfile %s" % gtf
-    # genomeSAindexNbases for small genomes
-    return ""
 
 def get_organism(wildcards): 
     """ Determine if organism is host or virus depending on wildcard.
@@ -168,6 +108,7 @@ def get_organism(wildcards):
         return "-v"
     # Don't invert grep
     return ""
+
 
 def get_filtered_bams(wildcards):
     """ 

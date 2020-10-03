@@ -1,30 +1,33 @@
-### ======= Quality Control and Reporting ======= ###
+### ======= Quality control and reporting with Multiqc ======= ###
+#
+# Author: Will Hannon 
+# Email: wwh22@uw.edu
+# Date: 10/31/2020
+#
 
 rule fastqc: 
     """ Generate a QC report for unfiltered reads. 
     """
     input: get_avaliable_fastqs
-    output: directory(join(config['qc_dir'], '{accession}/fastqc'))
+    output: directory(join(config['qc_dir'], "{accession}", "fastqc"))
     conda: '../envs/qc.yml'
-    log: "logs/fastqc/{accession}.log"
-    shell: "mkdir -p {output}; fastqc {input} --outdir {output} &> {log}"
+    shell: "mkdir -p {output}; fastqc {input} --outdir {output}"
 
 
 rule samtools_stats:
-    """ Calculate bam stats with samtools
+    """ Calculate bam stats with samtools.
     """
-    input: join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.bam")
-    output: join(config['qc_dir'], "{accession}", "{aligner}", "{accession}.{aligner}.virus.bam.stats")
+    input: join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.bam"),
+           join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.sorted.bam")
+    output: join(config['qc_dir'], "{accession}", "{aligner}", "{accession}.{aligner}.sorted.bam.stats"),
+            join(config['qc_dir'], "{accession}", "{aligner}", "{accession}.{aligner}.virus.sorted.bam.stats")
     conda: '../envs/samtools.yml'
-    shell: "samtools stats {input} > {output}"
+    shell: 
+        """
+        samtools stats {input[0]} > {output[0]}
+        samtools stats {input[1]} > {output[1]}
+        """
 
-rule calculate_coverage: 
-    input: 
-        bam=join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.bam"),
-        index=join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.bam")
-    output: join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.coverage")
-    conda: '../envs/samtools.yml'
-    shell: "samtools depth {input.bam} > {output}"
 
 rule multiqc:
     """
@@ -32,10 +35,10 @@ rule multiqc:
     single report. 
     """
     input: 
-        qc=expand([join(config['qc_dir'], '{accession}/fastqc'),
-                   join(config['qc_dir'], "{accession}", "{aligner}", "{accession}.{aligner}.virus.bam.stats"),
-                   join(config['qc_dir'], "{accession}", "STAR", "{accession}.STAR.Log.final.out"),
-                   join(config['split_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.coverage")],
+        qc=expand([join(config['qc_dir'], "{accession}", "fastqc"),
+                   join(config['qc_dir'], "{accession}", "{aligner}", "{accession}.{aligner}.sorted.bam.stats"),
+                   join(config['qc_dir'], "{accession}", "{aligner}", "{accession}.{aligner}.virus.sorted.bam.stats"),                  
+                   join(config['qc_dir'], "{accession}", "Picard", "{accession}.{aligner}.virus.metrics.txt")],
                    accession=pd.read_csv(config['samples']['file'])['Run'], aligner=['BWA'])
     output: directory(join(config['qc_dir'], 'multiqc'))
     conda: '../envs/qc.yml'

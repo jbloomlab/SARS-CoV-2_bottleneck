@@ -27,14 +27,7 @@ filter_reads_pe:
   user: wwh22@uw.edu
   mailtype: END
 
-bwa_mem:
-  cpus: 16
-  partition: campus-new
-  time: 0-4
-  user: wwh22@uw.edu
-  mailtype: END
-
-star_align:
+bwa_align:
   cpus: 16
   partition: campus-new
   time: 0-4
@@ -47,11 +40,3 @@ bwa_index:
   time: 0-4
   user: wwh22@uw.edu
   mailtype: END
-
-star_index:
-  cpus: 16
-  partition: campus-new
-  time: 0-4
-  user: wwh22@uw.edu
-  mailtype: END
-
