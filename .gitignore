@@ -134,6 +134,7 @@ dmypy.json
 results/
 **/ref
 **/index
+**/data
 **/gtf
 **/tools
 /tmp
