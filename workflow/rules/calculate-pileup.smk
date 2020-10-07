@@ -14,8 +14,9 @@ rule calculate_pileup:
            bai=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.sorted.marked.bam.bai"),        
            genome=get_genome
     output: join(config['pileup_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.mpileup.txt")
+    params: score=config['BQ']
     conda: '../envs/samtools.yml'
-    shell: "samtools mpileup -d 0 -E -q 30 -Q 30 -f {input.genome} {input.bam} -O -s --reverse-del -a -o {output}"
+    shell: "samtools mpileup -d 0 -E -q {params.score} -Q {params.score} -f {input.genome} {input.bam} -O -s --reverse-del -a -o {output}"
 
 
 rule parse_pileup:

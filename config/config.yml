@@ -44,6 +44,9 @@ filter_reads: TRUE
 # Remove duplicates with Picard
 remove_duplicates: false
 
+# Average base quality score to exclude below
+BQ: 25
+
 # Bin size for coverage graphs
 bin_size: 50
 
