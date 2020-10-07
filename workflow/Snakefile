@@ -26,12 +26,10 @@ rule all:
     input: 
         expand(join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.{split}.sorted.marked.bam.bai"),
                accession=pd.read_csv(config['samples']['file'])['Run'], aligner=["BWA"], split=['virus']),
-        #join(config['variant_dir'], "variants.csv"),
         join(config['pileup_dir'], "raw-variants.csv"),
         join(config['qc_dir'], 'multiqc'),
         join(config['coverage_dir'], "merged.bedgraph"),
         join(config['coverage_dir'], "merged.depth")
-        #expand(join(config['pileup_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.will.mpileup.csv"), accession=pd.read_csv(config['samples']['file'])['Run'], aligner=['BWA'])
 
 rule clean:
     shell:
