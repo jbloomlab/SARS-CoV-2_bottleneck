@@ -29,8 +29,10 @@ rule all:
         join(config['pileup_dir'], "raw-variants.csv"),
         join(config['qc_dir'], 'multiqc'),
         join(config['coverage_dir'], "merged.bedgraph"),
-        join(config['coverage_dir'], "merged.depth")
-
+        join(config['coverage_dir'], "merged.depth"),
+        join(config['coverage_dir'], "merged.average.depth"),
+        join(config['coverage_dir'], "coverage.stats")
+        
 rule clean:
     shell:
         """
