@@ -14,6 +14,7 @@ __copyright__   = "Copyright 2020, William Hannon"
 
 from collections import Counter
 import argparse
+import time
 
 ## ==== Functions ==== ##
 
@@ -439,4 +440,7 @@ class Pileup:
 ## ==== Run ==== ##
 
 if __name__ == "__main__":
+    start = time.time()
     Main()
+    end = time.time()
+    print(f'Finished in {(end-start)/60:.2f} minutes.')
