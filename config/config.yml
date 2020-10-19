@@ -37,6 +37,7 @@ human:
 threads:
   max_cpu: 32
   fastq_download: 8
+  pileup: 16
 
 # Filter fastq with kmer or align to multiple genomes
 filter_reads: TRUE

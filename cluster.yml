@@ -40,3 +40,10 @@ bwa_index:
   time: 0-4
   user: wwh22@uw.edu
   mailtype: END
+
+test_parsing:
+  cpus: 16
+  partition: campus-new
+  time: 0-4
+  user: wwh22@uw.edu
+  mailtype: END

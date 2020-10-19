@@ -1,7 +1,6 @@
 channels:
-  - bioconda
+  - anaconda
   - conda-forge 
 dependencies:
-  - samtools=1.10
-  - bedtools=2.29
+  - python=3.8
   - parallel
