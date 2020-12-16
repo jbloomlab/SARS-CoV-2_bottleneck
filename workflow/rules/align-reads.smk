@@ -83,8 +83,18 @@ rule mark_duplicates:
         """
 
 
+rule merge_bam:
+    """
+    Merge the BAM files from the same sample but different runs. 
+    """
+    input: get_avaliable_bams
+    output: join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.{split}.sorted.marked.merged.bam")
+    conda: '../envs/samtools.yml'
+    shell: "samtools merge {output} {input}" 
+
+
 rule index_bam:
-    """ Index mapped, sorted, and marked bam files. 
+    """ Index mapped, sorted, merged, and marked bam files. 
     """
     input: join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.{split}.sorted.marked.bam"),
     output: join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.{split}.sorted.marked.bam.bai")
@@ -92,3 +102,7 @@ rule index_bam:
     shell: "samtools index {input}"
 
 
+
+
+
+    
