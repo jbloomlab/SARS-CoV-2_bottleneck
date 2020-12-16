@@ -110,7 +110,7 @@ def get_organism(wildcards):
     return ""
 
 
-def get_filtered_bams(wildcards):
+def get_avaliable_bams(wildcards):
     """ 
     This function determines which filtered bam files to generate
     based on the accession.
@@ -118,13 +118,14 @@ def get_filtered_bams(wildcards):
     # Read the metadata into Pandas dataframe
     samples_df = pd.read_csv(config['samples']['file'])
     # Get the viral genome for a given accession
-    virusname = samples_df.loc[samples_df.Run == wildcards.accession, ["Virus"]].values.flatten().tolist()[0]
-    # Get the host genome for a given accession
-    hostname = samples_df.loc[samples_df.Run == wildcards.accession, ["Host"]].values.flatten().tolist()[0]
-    # Handle sequences that do not need to be mapped to host
-    if hostname == 'none':
+    library = np.unique(samples_df.loc[samples_df.Run == wildcards.accession, ["Library"]].values.flatten()).tolist()
 
-        return expand(join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.{organism}.bam"), organism=virusname)
+    return expand(join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.{split}.{library}.bam"), library=library)
 
-    return expand(join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.{organism}.bam"), organism=[virusname, hostname])
+
+
+
+
+
+
 
