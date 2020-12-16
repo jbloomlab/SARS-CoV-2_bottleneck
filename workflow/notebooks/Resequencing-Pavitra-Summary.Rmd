@@ -320,6 +320,47 @@ write_csv(metadata.df, "../../config/data/2020-10-09_SeqData.csv")
 ```
 
 
+### How much to resequence? 
+
+1,000,000 SARS-CoV-2 reads = ((amount to resequence) * fraction SARS-CoV-2)  
+
+(1,000,000 SARS-CoV-2 reads - current # of reads) = (amount to resequence * fraction SARS-CoV-2) 
+
+(1,000,000 SARS-CoV-2 reads - current # of reads)/fraction SARS-CoV-2 = amount to resequence
+
+
+```{r}
+
+# Get the target number of reads as the mean number of mapped reads for the 
+# samples with "good" concordance
+target_reads = metadata.df %>% 
+  group_by(Quality) %>% 
+  summarize(mean_mapped = mean(reads_mapped)) %>% 
+  filter(Quality == "good") %>% 
+  pull(mean_mapped)
+
+# Calculate the number of reads that still need to be sequenced
+resequence.df = metadata.df %>% 
+  # Calculate the number of reads using all mapped SARS-CoV-2 reads / % kmer matched from initial library
+  mutate(target_mapped_reads = (target_reads - reads_mapped) / (percent/100)) %>% 
+  # If we already have enough reads, set the value to 0 or no resequencing
+  mutate(target_mapped_reads = if_else(target_mapped_reads < 0, 0, target_mapped_reads)) %>% 
+  # Calculate the cost assuming the 10,000,000 reads costs 200$
+  mutate(cost = (target_mapped_reads/10000000) * 200) %>% 
+  # Select only the relevant columns
+  select(sample, accession, replicate, Ct, percent, reads_mapped, average_length, meandepth, percent_200X, Quality, target_mapped_reads, cost) 
+  
+# Print the total cost of resequencing
+print(sum(resequence.df$cost))
+
+# Print the total number of reads to resequence 
+print(sum(resequence.df$target_mapped_reads))
+
+# Write out the data table to send to Pavitra
+write_csv(resequence.df, "../../config/data/2020-10-20_SeqData-target.csv")
+
+ 
+```
 
 
 
