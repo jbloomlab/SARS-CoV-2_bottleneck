@@ -26,7 +26,6 @@ include: "rules/common.smk"
 rule all:
     input: 
         join(config['pileup_dir'], "raw-variants.csv"),
-        join(config['qc_dir'], 'multiqc'),
         join(config['coverage_dir'], "merged.bedgraph"),
         join(config['coverage_dir'], "merged.depth"),
         join(config['coverage_dir'], "merged.average.depth"),
@@ -50,7 +49,6 @@ include: "rules/filter-reads.smk"
 include: "rules/align-reads.smk"
 include: "rules/calculate-coverage.smk"
 include: "rules/calculate-pileup.smk"
-include: "rules/qc-tools.smk"
 
 
 #include: "rules/variant.smk"

@@ -38,7 +38,7 @@ rule split_bam:
             other_bam=join(config['align_dir'], "{aligner}", "{accession}-{library}", "{accession}-{library}.{aligner}.other.sorted.bam"),
             virus_sam=temp(join(config['align_dir'], "{aligner}", "{accession}-{library}", "{accession}-{library}.{aligner}.virus.sorted.sam")),
             other_sam=temp(join(config['align_dir'], "{aligner}", "{accession}-{library}", "{accession}-{library}.{aligner}.other.sorted.sam"))
-    params: contig=lambda wildcards: config[pd.read_csv(config['samples']['file']).set_index('Run').at[wildcards.accession, 'Virus']]['contig']
+    params: contig=config['SARS2']['contig']
     conda: '../envs/samtools.yml'
     shell:
         """
