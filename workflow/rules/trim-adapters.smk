@@ -16,9 +16,9 @@ rule trim_adapters_se:
     """
     input: get_avaliable_fastqs
     output: 
-        trimmed=join(config['trim_dir'], "{accession}", "{accession}.trimmed.fastq.gz"),
-        html=join(config['qc_dir'], "{accession}", "fastp", "{accession}.fastp.html"),
-        json=join(config['qc_dir'], "{accession}", "fastp", "{accession}.fastp.json")
+        trimmed=join(config['trim_dir'], "{accession}-{library}", "{accession}-{library}.trimmed.fastq.gz"),
+        html=join(config['qc_dir'], "{accession}-{library}", "fastp", "{accession}-{library}.fastp.html"),
+        json=join(config['qc_dir'], "{accession}-{library}", "fastp", "{accession}-{library}.fastp.json")
     conda: '../envs/trim.yml'
     shell:
         """ 
@@ -44,10 +44,10 @@ rule trim_adapters_pe:
     """
     input: get_avaliable_fastqs
     output:
-        trimmed=[join(config['trim_dir'], "{accession}", "{accession}_1.trimmed.fastq.gz"), 
-                 join(config['trim_dir'], "{accession}", "{accession}_2.trimmed.fastq.gz")],
-        html=join(config['qc_dir'], "{accession}", "fastp", "{accession}.fastp.html"),
-        json=join(config['qc_dir'], "{accession}", "fastp", "{accession}.fastp.json")
+        trimmed=[join(config['trim_dir'], "{accession}-{library}", "{accession}-{library}_1.trimmed.fastq.gz"), 
+                 join(config['trim_dir'], "{accession}-{library}", "{accession}-{library}_2.trimmed.fastq.gz")],
+        html=join(config['qc_dir'], "{accession}-{library}", "fastp", "{accession}-{library}.fastp.html"),
+        json=join(config['qc_dir'], "{accession}-{library}", "fastp", "{accession}-{library}.fastp.json")
     conda: '../envs/trim.yml'
     shell:
         """ 

@@ -8,8 +8,8 @@
 rule bedtools_coverage:
     """ Calculate the average read coverage over bins in the genome.
     """
-    input: bam=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.sorted.marked.bam"),
-           bai=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.sorted.marked.bam.bai"),
+    input: bam=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.sorted.marked.merged.bam"),
+           bai=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.sorted.marked.merged.bam.bai"),
            genome=get_genome
     output: join(config['coverage_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.bedgraph")
     params: binsize = config['bin_size']
@@ -42,8 +42,8 @@ rule merge_coverage:
 rule samtools_depth:
     """ Calculate the depth over each position filtering by the phred base score. 
     """
-    input: bam=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.sorted.marked.bam"),
-           bai=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.sorted.marked.bam.bai")
+    input: bam=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.sorted.marked.merged.bam"),
+           bai=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.sorted.marked.merged.bam.bai")
     output: join(config['coverage_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.depth")
     params: score=config['BQ'],
             binsize=config['bin_size']
@@ -72,8 +72,8 @@ rule merge_depth:
         """
 
 rule average_depth:
-    input: bam=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.sorted.marked.bam"),
-           bai=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.sorted.marked.bam.bai")
+    input: bam=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.sorted.marked.merged.bam"),
+           bai=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.sorted.marked.merged.bam.bai")
     output: join(config['coverage_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.average.depth")
     params: score=config['BQ']
     conda: '../envs/samtools.yml'
@@ -100,7 +100,7 @@ rule merge_average_depth:
         """
 
 rule coverage_stats: 
-    input: expand(join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.sorted.marked.bam"), accession=pd.read_csv(config['samples']['file'])['Run'], aligner=['BWA'])
+    input: expand(join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.sorted.marked.merged.bam"), accession=pd.read_csv(config['samples']['file'])['Run'], aligner=['BWA'])
     output: join(config['coverage_dir'], "coverage.stats")
     params: score=config['BQ']
     conda: '../envs/samtools.yml'

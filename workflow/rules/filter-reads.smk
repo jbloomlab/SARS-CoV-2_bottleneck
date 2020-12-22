@@ -18,11 +18,11 @@ rule filter_reads_se:
         reads=get_avaliable_trimmed_fastqs,
         genome=get_genome
     output: 
-        matched=join(config['filter_dir'], "{accession}", "{accession}.filtered.fastq.gz"),
-        unmatched=join(config['filter_dir'], "{accession}", "{accession}.unfiltered.fastq.gz"),
-        stats=join(config['qc_dir'], "{accession}", "BBduk", "{accession}.filter.stats")
+        matched=join(config['filter_dir'], "{accession}-{library}", "{accession}-{library}.filtered.fastq.gz"),
+        unmatched=join(config['filter_dir'], "{accession}-{library}", "{accession}-{library}.unfiltered.fastq.gz"),
+        stats=join(config['qc_dir'], "{accession}-{library}", "BBduk", "{accession}-{library}.filter.stats")
     threads: config['threads']['max_cpu']
-    params: error=join(config['filter_dir'], "{accession}", "{accession}.error.log")
+    params: error=join(config['filter_dir'], "{accession}-{library}", "{accession}-{library}.error.log")
     conda: '../envs/filter.yml'
     shell:
         """
@@ -52,13 +52,13 @@ rule filter_reads_pe:
         reads=get_avaliable_trimmed_fastqs,
         genome=get_genome
     output: 
-        matched=[join(config['filter_dir'], "{accession}", "{accession}_1.filtered.fastq.gz"), 
-                 join(config['filter_dir'], "{accession}", "{accession}_2.filtered.fastq.gz")],
-        unmatched=[join(config['filter_dir'], "{accession}", "{accession}_1.unfiltered.fastq.gz"), 
-                   join(config['filter_dir'], "{accession}", "{accession}_2.unfiltered.fastq.gz")],
-        stats=join(config['qc_dir'], "{accession}", "BBduk", "{accession}.filter.stats")
+        matched=[join(config['filter_dir'], "{accession}-{library}", "{accession}-{library}_1.filtered.fastq.gz"), 
+                 join(config['filter_dir'], "{accession}-{library}", "{accession}-{library}_2.filtered.fastq.gz")],
+        unmatched=[join(config['filter_dir'], "{accession}-{library}", "{accession}-{library}_1.unfiltered.fastq.gz"), 
+                   join(config['filter_dir'], "{accession}-{library}", "{accession}-{library}_2.unfiltered.fastq.gz")],
+        stats=join(config['qc_dir'], "{accession}-{library}", "BBduk", "{accession}-{library}.filter.stats")
     threads: config['threads']['max_cpu']
-    params: error=join(config['filter_dir'], "{accession}", "{accession}.error.log")
+    params: error=join(config['filter_dir'], "{accession}-{library}", "{accession}-{library}.error.log")
     conda: '../envs/filter.yml'
     shell:
         """

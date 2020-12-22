@@ -10,8 +10,8 @@ rule calculate_pileup:
     Calculate the pileup of bases at every position in virus genome.
     Only calculates bases with Phred scaled quality score higher than 30.
     """
-    input: bam=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.sorted.marked.bam"),
-           bai=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.sorted.marked.bam.bai"),        
+    input: bam=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.sorted.marked.merged.bam"),
+           bai=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.sorted.marked.merged.bam.bai"),        
            genome=get_genome
     output: join(config['pileup_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.mpileup.txt")
     params: score=config['BQ']
