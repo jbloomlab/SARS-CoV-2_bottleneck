@@ -10,7 +10,7 @@ def single_ended(Run):
     Returns `True` if the Library Layout is single-end reads.
     """
     # Get the Library Layout
-    layout = pd.read_csv(config['samples']['file']).set_index('Run').at[Run, 'LibraryLayout']
+    layout = pd.read_csv(config['samples']['file']).set_index('Run').at[Run, 'LibraryLayout'].to_list()[0]
     # Check the layout
     if layout == "SINGLE":
         return True
@@ -26,10 +26,10 @@ def get_avaliable_fastqs(wildcards):
     # If the layout is single-ended.
     if single_ended(wildcards.accession):
         # Return the target files.
-        return expand(join(config["fastq_dir"], "{accession}", "{accession}.fastq.gz"), accession=wildcards.accession)
+        return expand(join(config["fastq_dir"], "{accession}-{library}", "{accession}-{library}.fastq.gz"), accession=wildcards.accession, library=wildcards.library)
     # Otherwise the layout is assumed to be paired-ended. 
-    return expand([join(config["fastq_dir"], "{accession}", "{accession}_1.fastq.gz"),
-                   join(config["fastq_dir"], "{accession}", "{accession}_2.fastq.gz")], accession=wildcards.accession)
+    return expand([join(config["fastq_dir"], "{accession}-{library}", "{accession}-{library}_1.fastq.gz"),
+                   join(config["fastq_dir"], "{accession}-{library}", "{accession}-{library}_2.fastq.gz")], accession=wildcards.accession, library=wildcards.library)
 
 
 def get_avaliable_trimmed_fastqs(wildcards):
@@ -40,10 +40,10 @@ def get_avaliable_trimmed_fastqs(wildcards):
     # If the layout is single-ended.
     if single_ended(wildcards.accession):
         # Return the target files.
-        return expand(join(config["trim_dir"], "{accession}", "{accession}.trimmed.fastq.gz"), accession=wildcards.accession)
+        return expand(join(config["trim_dir"], "{accession}-{library}", "{accession}-{library}.trimmed.fastq.gz"), accession=wildcards.accession, library=wildcards.library)
     # Otherwise the layout is assumed to be paired-ended. 
-    return expand([join(config["trim_dir"], "{accession}", "{accession}_1.trimmed.fastq.gz"),
-                   join(config["trim_dir"], "{accession}", "{accession}_2.trimmed.fastq.gz")], accession=wildcards.accession)
+    return expand([join(config["trim_dir"], "{accession}-{library}", "{accession}-{library}_1.trimmed.fastq.gz"),
+                   join(config["trim_dir"], "{accession}-{library}", "{accession}-{library}_2.trimmed.fastq.gz")], accession=wildcards.accession, library=wildcards.library)
      
 
 def get_avaliable_filtered_fastqs(wildcards):
@@ -54,10 +54,10 @@ def get_avaliable_filtered_fastqs(wildcards):
     # If the layout is single-ended.
     if single_ended(wildcards.accession):
         # Return the target files.
-        return expand(join(config["filter_dir"], "{accession}", "{accession}.filtered.fastq.gz"), accession=wildcards.accession)
+        return expand(join(config["filter_dir"], "{accession}-{library}", "{accession}-{library}.filtered.fastq.gz"), accession=wildcards.accession, library=wildcards.library)
     # Otherwise the layout is assumed to be paired-ended. 
-    return expand([join(config["filter_dir"], "{accession}", "{accession}_1.filtered.fastq.gz"),
-                   join(config["filter_dir"], "{accession}", "{accession}_2.filtered.fastq.gz")], accession=wildcards.accession)
+    return expand([join(config["filter_dir"], "{accession}-{library}", "{accession}-{library}_1.filtered.fastq.gz"),
+                   join(config["filter_dir"], "{accession}-{library}", "{accession}-{library}_2.filtered.fastq.gz")], accession=wildcards.accession, library=wildcards.library)
      
 
 
@@ -120,7 +120,7 @@ def get_avaliable_bams(wildcards):
     # Get the viral genome for a given accession
     library = np.unique(samples_df.loc[samples_df.Run == wildcards.accession, ["Library"]].values.flatten()).tolist()
 
-    return expand(join(config['align_dir'], "{{aligner}}", "{{accession}}", "{{accession}}.{{aligner}}.{{split}}.{library}.bam"), library=library)
+    return expand(join(config['align_dir'], "{{aligner}}", "{{accession}}-{library}", "{{accession}}-{library}.{{aligner}}.{{split}}.sorted.marked.bam"), library=library)
 
 
 
