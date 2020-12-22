@@ -10,7 +10,10 @@ def single_ended(Run):
     Returns `True` if the Library Layout is single-end reads.
     """
     # Get the Library Layout
-    layout = pd.read_csv(config['samples']['file']).set_index('Run').at[Run, 'LibraryLayout'].to_list()[0]
+    layout = pd.read_csv(config['samples']['file']).set_index('Run').at[Run, 'LibraryLayout']
+
+    if not isinstance(layout, str):
+        layout = layout.to_list()[0]
     # Check the layout
     if layout == "SINGLE":
         return True
