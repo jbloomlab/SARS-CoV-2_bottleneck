@@ -8,8 +8,11 @@ import os
 import pandas as pd
 from snakemake.shell import shell
 
+# Import the data frame with the samples to download. 
+samples_df = pd.read_csv(snakemake.config['samples']['file'])
+
 # Determine if the run is local or on deposited on the SRA from ./config/samples.csv
-source = pd.read_csv(snakemake.config['samples']['file']).set_index('Run').at[snakemake.wildcards.accession, 'Source']
+source = samples_df.loc[samples_df.Run == snakemake.wildcards.accession, "Source"].tolist()[0]
 
 # If the sample needs to be downloaded from the NCBI SRA
 if source == "SRA":
@@ -35,10 +38,10 @@ if source == "SRA":
 elif source == "local":
 
     # Get the path to the files
-    path = pd.read_csv(snakemake.config['samples']['file']).set_index('Run').at[snakemake.wildcards.accession, 'Path'].strip('][').split(', ')
+    path = samples_df.loc[samples_df.Run == snakemake.wildcards.accession, "Path"].tolist()[0].strip('][').split(', ')
 
     # Check if the run is paired or single-ended 
-    layout = pd.read_csv(snakemake.config['samples']['file']).set_index('Run').at[snakemake.wildcards.accession, 'LibraryLayout']
+    layout = samples_df.loc[samples_df.Run == snakemake.wildcards.accession, "LibraryLayout"].tolist()[0]
 
     # Two approaches depending on the layout
     if layout == "PAIRED":
