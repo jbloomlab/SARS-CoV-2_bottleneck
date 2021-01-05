@@ -48,4 +48,4 @@ One of the samples is missing a corresponding run: SpID 10110 1 10
 
 #### TODO
 
-- Figure out how to merge the new sequencing data with the old. Is it more appropriate to align all separatley and then merge the variants before calling? Or is prefereable to merge the fastq files first?
+New sequencing samples have been sucessfully merged with the old ones. Next step is characterizing how much of a difference this makes in concordance. 
