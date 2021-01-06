@@ -1,3 +1,15 @@
+"""
+This module contains functions for calling single nucleotide 
+polymorphisms from Illumina short read sequencing data in the 
+form of indexed and sorted BAM files. 
+
+The main library that facillitates this is `pysam`.
+
+Importantly, this module's functions differ from other
+variants callers in that there is no statistical filtering
+of variants. All variants are identified and reported consistent
+with heuristic cutoffs. 
+"""
 __author__ = "Will Hannon"
 __copyright__ = "Copyright 2020 Will Hannon"
 __email__ = "wwh22@uw.edu"
@@ -57,43 +69,6 @@ def translate(codon):
     assert codon in table.keys(), "Not a valid codon sequence."
     
     return table[codon]
-
-def get_day(path):
-    """
-    If the samples are downloaded from the SRA, use the
-    SRA accession to get the day the sample was collected on. 
-
-    Parameters
-    ----------
-    path : str
-        path to the sample
-
-    Returns
-    -------
-    int
-        the day the sample was collected
-
-    """
-    
-    day_mapping = { 
-    'SRR13160722':152, 
-    'SRR13160723':146, 
-    'SRR13160724':143, 
-    'SRR13160725':130, 
-    'SRR13160726':128, 
-    'SRR13160727':81, 
-    'SRR13160728':75, 
-    'SRR13160729':25, 
-    'SRR13160730':18
-    } 
-    
-    basename = os.path.basename(path)
-
-    regex = re.compile("(?P<run>SRR\d+)\.BWA")
-    
-    m = regex.match(basename)
-
-    return day_mapping[str(m.group('run'))]
 
 
 def mutate(codon, alt, index):
