@@ -1,5 +1,6 @@
 """ 
-This Snakemake file runs the template analysis for the viral-deepseq pipeline.
+This `Snakefile` runs the full analysis of the transmission bottleneck 
+of SARS-CoV-2 from a fishing boat cohort.
 
 Author: Will Hannon – https://www.linkedin.com/in/williamhannon/
 """
