@@ -139,7 +139,7 @@ def check_read(read):
         
     
 def build_af_df(filepath, 
-                callback_function=check_read, 
+                callback_function = check_read, 
                 ref = "NC_045512.2", 
                 ref_path = "../../config/ref/SARS2.fa", 
                 minimum_AF = 0.01, 
@@ -176,10 +176,9 @@ def build_af_df(filepath,
         
     """
 
-    # Open alignment with pysam
     with pysam.AlignmentFile(filepath, "rb") as bamfile:
         
-        # Get a dataframe of the counts
+        # The count_coverage method counts the occurances of each base at each position. It excludes reads based on the callback function
         count_df = pd.DataFrame.from_dict({base:counts for base, counts in zip("ACGT", bamfile.count_coverage(contig = ref, read_callback=callback_function, quality_threshold=minimum_qual))})
         
         # Add the depth at each position
@@ -216,184 +215,38 @@ def build_af_df(filepath,
         # Sort by position and reset the index
         return count_df.sort_values('POS').reset_index(drop=True)
      
-    
-def annotate_coding_change_in_spike(count_df, ref_genome):
+
+def main():
+    """Main function to call pysam pileup scipt.
     """
-    Annotate the protein coding changes of mutations in the Spike gene 
-    of SARS-CoV-2 (i.e. in the format `D614G`). 
+    # Get the path for the input BAM file from snakemake rule.
+    inputpath = str(snakemake.input.bam)
 
-    Parameters
-    ----------
-    count_df : Pandas.DataFrame
-       Data Frame containing the bases represented at each positon in the genome
-        
-    ref_genome : str
-        reference genome for all of SARS-CoV-2
-        
+    # Get the path to the output csv file from snakemake rule.
+    outpath = str(snakemake.output)
 
-    Returns
-    -------
-    Pandas.DataFrame
-       Data Frame containing annotation for all position over Spike
-        
-    """
-    # Lists to hold residue changes and positions
-    residue_change_list = []
-    residue_position_list = []
-    resiude_wt_list = []
-    residue_mut_list = []
-    
-    # Spike Sequence by coordinates of spike 0-indexed
-    spike_sequence = "".join(ref_genome[21562:25384])
+    # Get the path to the reference genome from snakemake rule. 
+    ref_genome = [base.upper() for base in list(SeqIO.parse(str(snakemake.input.genome), "fasta"))[0].seq]
 
-    # Pull out only the SNPs in Spike 1-indexed
-    ## spike_SNP_df = count_df[(count_df.SNP) & (count_df.POS >= 21563) & (count_df.POS <= 25384)]
-    
-    spike_SNP_df = count_df[(count_df.POS >= 21563) & (count_df.POS <= 25384)]
+    # Get the sample name, i.e. accession, from the path.
+    accession = os.path.basename(inputpath)
 
-    # Iterate over every row in the data frame by alternative allele and position
-    for alt, pos in zip(spike_SNP_df.ALT.tolist(),spike_SNP_df.POS.tolist()):
-        
-        # Get the position in the genome relative to Spike
-        position_in_spike = pos - 21562
-        
-        ## === Check the position of the SNP in the codon == ##
+    # Build the count df
+    # TODO: Currently hardcoded for COVID Wuhan-1 reference build.
+    count_df = build_af_df(inputpath, 
+                callback_function=check_read, 
+                ref = "NC_045512.2", 
+                ref_path = str(snakemake.input.genome), 
+                minimum_AF = 0.01, 
+                minimum_qual = int(snakemake.params.score))
 
-        # First base in codon
-        if position_in_spike % 3 == 1:
-            
-            # Save codon position
-            position_in_codon = 1
+    # Add accession and day to data frame
+    count_df.insert(0, 'ACCESSION', accession)
 
-            # Get the sequence of the wt codon by index
-            wt_codon = spike_sequence[position_in_spike-1:position_in_spike+2]
-
-            # Translate wt codon to residue
-            wt_aa = translate(wt_codon)
-
-            # Get the sequence of the mut codon by index
-            mut_codon = mutate(wt_codon, alt, position_in_codon-1)
-
-            # Translate mut codon to residue
-            mut_aa = translate(mut_codon)
-
-            # Calculate the position of the residue in Spike
-            residue_position_in_spike = int((position_in_spike + 2) / 3)
-            
-            # Build the list of mutations and positions
-            residue_change_list.append(f"{wt_aa}{residue_position_in_spike}{mut_aa}")
-            residue_position_list.append(residue_position_in_spike)
-            resiude_wt_list.append(wt_aa)
-            residue_mut_list.append(mut_aa)
+    # Exporting to csv for final analysis in `R`
+    count_df.to_csv(outpath, index=False)
 
 
-        # Second base in codon
-        elif position_in_spike % 3 == 2:
-            
-            # Save codon position
-            position_in_codon = 2
-            
-            # Get the sequence of the wt codon by index
-            wt_codon = spike_sequence[position_in_spike-2:position_in_spike+1]
+if __name__ == '__main__':
+    main()
 
-            # Translate wt codon to residue            
-            wt_aa = translate(wt_codon)
-
-            # Get the sequence of the mut codon by index           
-            mut_codon = mutate(wt_codon, alt, position_in_codon-1)
-            
-            # Translate mut codon to residue
-            mut_aa = translate(mut_codon)
-
-            # Calculate the position of the residue in Spike
-            residue_position_in_spike = int((position_in_spike + 1) / 3)
-
-            # Build the list of mutations and positions
-            residue_change_list.append(f"{wt_aa}{residue_position_in_spike}{mut_aa}")
-            residue_position_list.append(residue_position_in_spike)
-            resiude_wt_list.append(wt_aa)
-            residue_mut_list.append(mut_aa)
-
-       
-        # Third base in codon
-        elif position_in_spike % 3 == 0:
-
-            # Save codon position
-            position_in_codon = 3
-            
-            # Get the sequence of the wt codon by index
-            wt_codon = spike_sequence[position_in_spike-3:position_in_spike]
-
-            # Translate wt codon to residue            
-            wt_aa = translate(wt_codon)
-            
-            # Get the sequence of the mut codon by index  
-            mut_codon = mutate(wt_codon, alt, position_in_codon-1)
-
-            # Translate mut codon to residue
-            mut_aa = translate(mut_codon)
-
-            # Calculate the position of the residue in Spike
-            residue_position_in_spike = int((position_in_spike) / 3)
-
-            # Build the list of mutations and positions
-            residue_change_list.append(f"{wt_aa}{residue_position_in_spike}{mut_aa}")
-            residue_position_list.append(residue_position_in_spike)
-            resiude_wt_list.append(wt_aa)
-            residue_mut_list.append(mut_aa)
-
-    return spike_SNP_df.assign(AA_CHANGE = residue_change_list,
-                               PROT_POS = residue_position_list,
-                               WT_AA = resiude_wt_list,
-                               MUT_AA = residue_mut_list)
-
-## ===== Main ===== ##
-
-# Input path to BAM
-inputpath = str(snakemake.input.bam)
-
-# Output path to csv file
-outpath = str(snakemake.output)
-
-# Reference genome
-ref_genome = [base.upper() for base in list(SeqIO.parse(str(snakemake.input.genome), "fasta"))[0].seq]
-
-# Name of sample
-accession = os.path.basename(inputpath)
-
-if accession.startswith("Day"):
-
-    # Get the day of the sample 
-    regex = re.compile("Day(?P<Day>\d+)_")
-    m = regex.match(accession)
-    day = int(m.group('Day'))
-
-else:
-
-   day = get_day(inputpath)
-
-# Build the count df
-count_df = build_af_df(inputpath, 
-            callback_function=check_read, 
-            ref = "NC_045512.2", 
-            ref_path = str(snakemake.input.genome), 
-            minimum_AF = 0.01, 
-            minimum_qual = int(snakemake.params.score))
-
-# Add accession and day to data frame
-count_df.insert(0, 'ACCESSION', accession)
-count_df.insert(1, 'DAY', day)
-
-# Annotate the count df   
-joined_spike_count_df = annotate_coding_change_in_spike(count_df, ref_genome)
-
-# TRUE/FALSE if there is a missense mutation
-joined_spike_count_df['MISSENSE'] = np.where(joined_spike_count_df['WT_AA'] != joined_spike_count_df['MUT_AA'], True, False)
-
-# TRUE/FALSE if the mutation is in the RBD
-joined_spike_count_df['RBD'] = np.where((joined_spike_count_df['PROT_POS'] >= 331) & (joined_spike_count_df['PROT_POS'] <= 531), True, False)
-
-# Write this dataframe into R for plotting and testing.
-joined_spike_count_df.to_csv(outpath, index=False)
-
-## ===== Main ===== ##
