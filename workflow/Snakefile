@@ -30,6 +30,7 @@ rule all:
         join(config['coverage_dir'], "merged.bedgraph"),
         join(config['coverage_dir'], "merged.depth"),
         join(config['coverage_dir'], "merged.average.depth"),
+        join(config['pileup_dir'], "pysam_variants.csv"),
         join(config['coverage_dir'], "coverage.stats")
         
 rule clean:
