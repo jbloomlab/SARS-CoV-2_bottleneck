@@ -1,0 +1,12 @@
+---
+title: "Transmission Bottleneck"
+author: "Will Hannon"
+date: "1/11/2021"
+output: html_document
+---
+
+This notebook contains an analysis of the transmission bottleneck for the `SARS-CoV-2_Bottleneck` project. The main goals of this notebook are to characterize: 
+
+1. Identify the degree to which varaints are shared between individuals on the boat. 
+2. Determine if there are sepecific characteristics of these variants. 
+3. Calculate a pair-wise transmission bottleneck with a beta-binomial model. 

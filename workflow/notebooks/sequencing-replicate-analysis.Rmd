@@ -1,0 +1,12 @@
+---
+title: "Replicate Analysis"
+author: "Will Hannon"
+date: "1/11/2021"
+output: html_document
+---
+
+This notebook contains an analysis of replicate sequencing runs for the `SARS-CoV-2_Bottleneck` project. The main goals of this notebook are to characterize: 
+
+1. Concordance between replicate sequencing runs. 
+2. Identify samples with poor concordance that should be excluded from the analysis. 
+3. Determine the ideal heuristic thresholds for sequencing depth and allele count. 

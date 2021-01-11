@@ -1,0 +1,12 @@
+---
+title: "Varaint Features"
+author: "Will Hannon"
+date: "1/11/2021"
+output: html_document
+---
+
+This notebook contains an analysis of the features of minor variants for the `SARS-CoV-2_Bottleneck` project. The main goals of this notebook are to characterize: 
+
+1. Identify distribution of minor variants over the genome.
+2. Determine the ratio of tansitions to transversions. 
+3. Show the mutation specturm.

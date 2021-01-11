@@ -1,0 +1,12 @@
+---
+title: "Quality Control"
+author: "Will Hannon"
+date: "1/11/2021"
+output: html_document
+---
+
+This notebook contains an QC analysis of sequencing runs for the `SARS-CoV-2_Bottleneck` project. The main goals of this notebook are to characterize: 
+
+1. Identify samples and regions of low-depth in the sequencing. 
+2. Determine the contribution of extra sequencing to the quality of samples. 
+3. Identify any oddities in the sequencing runs.
