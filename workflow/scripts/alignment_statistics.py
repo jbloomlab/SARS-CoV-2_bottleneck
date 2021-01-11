@@ -9,3 +9,8 @@ __email__ = "wwh22@uw.edu"
 __license__ = "MIT"
 
 import pysam
+import pandas as pd #data frames
+import numpy as np #arrays
+import os #interacting with files
+from Bio import SeqIO #reading fasta format
+import re #regular expressions

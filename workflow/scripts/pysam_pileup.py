@@ -229,7 +229,7 @@ def main():
     ref_genome = [base.upper() for base in list(SeqIO.parse(str(snakemake.input.genome), "fasta"))[0].seq]
 
     # Get the sample name, i.e. accession, from the path.
-    accession = os.path.basename(inputpath)
+    accession = os.path.basename(inputpath).split(".")[0]
 
     # Build the count df
     # TODO: Currently hardcoded for COVID Wuhan-1 reference build.

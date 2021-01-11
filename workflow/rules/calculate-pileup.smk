@@ -68,7 +68,7 @@ rule aggregate_pysam_pileup:
     """ Aggregate variants called with python and pysam.. 
     """
     input: expand(join(config['pileup_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.pysam.pileup.csv"), accession=pd.read_csv(config['samples']['file'])['Run'], aligner=['BWA'])
-    output: join(config['pileup_dir'], "pysam_variants.csv")
+    output: join(config['pileup_dir'], "pysam-variants.csv")
     run:
         paths = []
         for f in input:
