@@ -10,3 +10,24 @@ This notebook contains an analysis of the features of minor variants for the `SA
 1. Identify distribution of minor variants over the genome.
 2. Determine the ratio of tansitions to transversions. 
 3. Show the mutation specturm.
+
+```{r Setup, include=FALSE}
+require("knitr")
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r Required Packages, message=FALSE, warning=FALSE, echo=FALSE}
+
+## ==== Install Required Packages ==== ##
+
+## List of all packages needed -- non-BioManager installed
+packages = c("tidyverse", "ggrepel", "plotly")
+## Check that packages are installed, if not, install them
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+## Packages loading
+invisible(lapply(c(packages), library, character.only = TRUE))
+
+```

@@ -10,3 +10,90 @@ This notebook contains an analysis of replicate sequencing runs for the `SARS-Co
 1. Concordance between replicate sequencing runs. 
 2. Identify samples with poor concordance that should be excluded from the analysis. 
 3. Determine the ideal heuristic thresholds for sequencing depth and allele count. 
+
+```{r Setup, include=FALSE}
+require("knitr")
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r Required Packages, message=FALSE, warning=FALSE, echo=FALSE}
+
+## ==== Install Required Packages ==== ##
+
+## List of all packages needed -- non-BioManager installed
+packages = c("tidyverse", "ggrepel", "plotly", "ggpubr")
+## Check that packages are installed, if not, install them
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+## Packages loading
+invisible(lapply(c(packages), library, character.only = TRUE))
+
+```
+
+```{r Filepaths, include=FALSE}
+
+## ==== File paths input data ==== ##
+
+# Data from pysam/python script. It contains the % of each nucleotide
+# at every covered position in the genome. This is a huge file.
+pysam.data = "../../results/pileup/pysam-variants.csv"
+
+```
+
+```{r Format data, include=FALSE, warning=FALSE, message=FALSE}
+
+# Import the data splitting the accession ID into the Accession and the Replicate
+pysam.df = read_csv(pysam.data) %>% 
+  separate(ACCESSION, into = c("ACCESSION", "REPLICATE"), sep = "_") %>% 
+  mutate(REPLICATE = as.factor(REPLICATE))
+
+# Get only the consensus alleles
+pysam.consensus.df = pysam.df %>% 
+  filter(CONS == TRUE)
+
+# Get only the SNPs
+pysam.snp.df = pysam.df %>% 
+  filter(SNP == TRUE) 
+
+# Get the prevalence of SNPs between replicates by filtering 
+# and joining by the samples, position in the genome, reference
+# allele (this is redundant), and the alternative allele (SNP).
+pysam.combined.snps.df = full_join(
+  filter(pysam.snp.df, REPLICATE == "1"),
+  filter(pysam.snp.df, REPLICATE == "2"), 
+  by = c("ACCESSION", "POS", "REF", "ALT"),
+  suffix = c(".one", ".two")
+  ) %>% 
+  select(!c("REPLICATE.one", "REPLICATE.two", "SNP.one", "SNP.two", "CONS.one", "CONS.two")) %>% 
+  mutate_each(list( ~ replace(., which(is.na(.)), 0)))
+
+```
+
+## Concordance
+
+Below is a plot of the concordance of allele frequency between sequencing replicates. 
+
+```{r Concordance Plot, include=FALSE, warning=FALSE, message=FALSE, fig.width=9, fig.height=7, fig.align='center'}
+
+pysam.combined.snps.df %>% 
+  filter(DP.one >= 100 | DP.two >= 100) %>% 
+  ggplot(aes(x = AF.one, y = AF.two)) + 
+    facet_wrap(~ ACCESSION)+
+    geom_point(size = 3) +
+    geom_smooth(method='lm', se = F, col = "blue") + 
+    stat_cor(method="pearson") +
+    xlab("Allele Frequency Replicate One") +
+    ylab("Allele Frequency Replicate Two") +
+    theme_classic() +
+    theme(text=element_text(size=18,  family="Helvetica")) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+    theme(panel.background = element_rect(fill = NA, color = "black"))
+
+
+```
+
+
+
+

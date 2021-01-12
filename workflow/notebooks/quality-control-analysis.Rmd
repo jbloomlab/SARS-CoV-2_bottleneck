@@ -10,3 +10,24 @@ This notebook contains an QC analysis of sequencing runs for the `SARS-CoV-2_Bot
 1. Identify samples and regions of low-depth in the sequencing. 
 2. Determine the contribution of extra sequencing to the quality of samples. 
 3. Identify any oddities in the sequencing runs.
+
+```{r Setup, include=FALSE}
+require("knitr")
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r Required Packages, message=FALSE, warning=FALSE, echo=FALSE}
+
+## ==== Install Required Packages ==== ##
+
+## List of all packages needed -- non-BioManager installed
+packages = c("tidyverse", "ggrepel", "plotly")
+## Check that packages are installed, if not, install them
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+## Packages loading
+invisible(lapply(c(packages), library, character.only = TRUE))
+
+```
