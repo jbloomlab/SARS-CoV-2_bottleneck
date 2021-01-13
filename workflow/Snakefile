@@ -26,11 +26,7 @@ include: "rules/common.smk"
 
 rule all:
     input: 
-        join(config['coverage_dir'], "merged.bedgraph"),
-        join(config['coverage_dir'], "merged.depth"),
-        join(config['coverage_dir'], "merged.average.depth"),
         join(config['pileup_dir'], "pysam-variants.csv"),
-        join(config['coverage_dir'], "coverage.stats")
         
 rule clean:
     shell:
@@ -42,7 +38,6 @@ rule clean:
 #### ------------------------ Rules ------------------------ ####
 
 include: "rules/download-reference.smk"
-include: "rules/download-tools.smk"
 include: "rules/download-fastq.smk"
 include: "rules/index-reference.smk"
 include: "rules/trim-adapters.smk"
@@ -52,4 +47,3 @@ include: "rules/calculate-coverage.smk"
 include: "rules/calculate-pileup.smk"
 
 
-#include: "rules/variant.smk"
