@@ -9,7 +9,7 @@ rule fastqc:
     """ Generate a QC report for unfiltered reads. 
     """
     input: get_avaliable_fastqs
-    output: directory(join(config['qc_dir'], "{accession}", "fastqc"))
+    output: directory(join(config['qc_dir'], "{accession}-{library}", "fastqc"))
     conda: '../envs/qc.yml'
     shell: "mkdir -p {output}; fastqc {input} --outdir {output}"
 
