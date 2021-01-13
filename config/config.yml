@@ -60,13 +60,6 @@ filter_dir: results/filtered
 align_dir: results/aligned
 qc_dir: results/qc
 coverage_dir: results/coverage
-
-
-variant_dir: results/variant
-realign_dir: results/realign
-trinity_dir: results/trinity
-vicuna_dir: results/vicuna
-consensus_dir: results/consensus
 pileup_dir: results/pileup
 
 # ++ Config Directoties ++ #
