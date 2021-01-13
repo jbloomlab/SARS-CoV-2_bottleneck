@@ -126,6 +126,18 @@ def get_avaliable_bams(wildcards):
     return expand(join(config['align_dir'], "{{aligner}}", "{{accession}}-{library}", "{{accession}}-{library}.{{aligner}}.{{split}}.sorted.marked.bam"), library=library)
 
 
+def get_fastqc_runs():
+    """ 
+    Get the combinations of accession and library for all
+    possible runs as an output of fastqc.
+    """
+    samples_df = pd.read_csv(config['samples']['file'])
+    file_list = []
+    for index, row in samples_df.iterrows():
+        file_list.append(join(config['qc_dir'], f"{row['Run']}-{row['Library']}", "fastqc"))
+    return file_list
+
+
 
 
 
