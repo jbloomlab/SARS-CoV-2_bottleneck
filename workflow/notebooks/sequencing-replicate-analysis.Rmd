@@ -73,12 +73,11 @@ pysam.combined.snps.df = full_join(
 
 ## Concordance
 
-Below is a plot of the concordance of allele frequency between sequencing replicates. 
+Below is a plot of the concordance of allele frequency between sequencing replicates. This doesn't include any filters for depth of sequencing. So the allele frequency for one replicate could have been sampled from 10,000 reads while the other only 10.  
 
-```{r Concordance Plot, include=FALSE, warning=FALSE, message=FALSE, fig.width=9, fig.height=7, fig.align='center'}
+```{r Concordance Plot, warning=FALSE, message = FALSE, fig.width=9, fig.height=7, fig.align='center'}
 
 pysam.combined.snps.df %>% 
-  filter(DP.one >= 100 | DP.two >= 100) %>% 
   ggplot(aes(x = AF.one, y = AF.two)) + 
     facet_wrap(~ ACCESSION)+
     geom_point(size = 3) +
@@ -94,6 +93,44 @@ pysam.combined.snps.df %>%
 
 ```
 
+Let's see what this looks like when you take the log of the allele frequency. Again, the plot below has no filters for depth, minimum allele frequency, or anything else. 
 
+```{r Log Concordance Plot, warning=FALSE, message=FALSE, fig.width=9, fig.height=7, fig.align='center'}
+
+pysam.combined.snps.df %>% 
+  ggplot(aes(x = log10(AF.one), y = log10(AF.two))) + 
+    facet_wrap(~ ACCESSION)+
+    geom_point(size = 3) +
+    geom_smooth(method='lm', se = F, col = "blue") + 
+    stat_cor(method="pearson") +
+    xlab("Allele Frequency Replicate One (log10)") +
+    ylab("Allele Frequency Replicate Two (log10)") +
+    theme_classic() +
+    theme(text=element_text(size=18,  family="Helvetica")) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+    theme(panel.background = element_rect(fill = NA, color = "black"))
+
+```
+
+There are clearly a lot of alleles that have counts in one replicate but are abscent from the other replicate. To refine this further I'll apply some heurisitc filter for what positions to include.
+
+```{r Filtered Log Concordance Plot, warning=FALSE, message=FALSE, fig.width=9, fig.height=7, fig.align='center'}
+
+pysam.combined.snps.df %>% 
+  filter(AF.one > .05 | AF.two > .05) %>% 
+  filter(DP.one > 100 & DP.two > 100) %>% 
+  ggplot(aes(x = (AF.one), y = (AF.two))) + 
+    facet_wrap(~ ACCESSION)+
+    geom_point(size = 3) +
+    geom_smooth(method='lm', se = F, col = "blue") + 
+    stat_cor(method="pearson") +
+    xlab("Allele Frequency Replicate One (log10)") +
+    ylab("Allele Frequency Replicate Two (log10)") +
+    theme_classic() +
+    theme(text=element_text(size=18,  family="Helvetica")) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+    theme(panel.background = element_rect(fill = NA, color = "black"))
+
+```
 
 
