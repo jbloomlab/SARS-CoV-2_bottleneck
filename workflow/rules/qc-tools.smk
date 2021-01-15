@@ -22,14 +22,14 @@ rule fastqc_trim:
     conda: '../envs/qc.yml'
     shell: "mkdir -p {output}; fastqc {input} --outdir {output}"
 
-# TODO: Make sure the paths point to the correct BAM files. 
+
 rule samtools_stats:
     """ Calculate bam stats with samtools.
     """
-    input: join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.bam"),
-           join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.sorted.bam")
-    output: join(config['qc_dir'], "{accession}", "{aligner}", "{accession}.{aligner}.sorted.bam.stats"),
-            join(config['qc_dir'], "{accession}", "{aligner}", "{accession}.{aligner}.virus.sorted.bam.stats")
+    input: join(config['align_dir'], "{aligner}", "{accession}-{library}", "{accession}-{library}.{aligner}.sorted.marked.bam"),
+           join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.marked.merged.bam")
+    output: join(config['qc_dir'], "{accession}-{library}", "{aligner}", "{accession}-{library}.{aligner}.bam.stats"),
+            join(config['qc_dir'], "{accession}", "{aligner}", "{accession}.{aligner}.merged.bam.stats")
     conda: '../envs/samtools.yml'
     shell: 
         """
