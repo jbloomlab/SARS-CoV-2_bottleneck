@@ -23,32 +23,64 @@ rule fastqc_trim:
     shell: "mkdir -p {output}; fastqc {input} --outdir {output}"
 
 
-rule samtools_stats:
-    """ Calculate bam stats with samtools.
+rule samtools_unmerged_stats:
+    """ 
+    Calculate basic statistics about the unmerged BAM files.
     """
     input: join(config['align_dir'], "{aligner}", "{accession}-{library}", "{accession}-{library}.{aligner}.sorted.marked.bam"),
-           join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.marked.merged.bam")
     output: join(config['qc_dir'], "{accession}-{library}", "{aligner}", "{accession}-{library}.{aligner}.bam.stats"),
-            join(config['qc_dir'], "{accession}", "{aligner}", "{accession}.{aligner}.merged.bam.stats")
     conda: '../envs/samtools.yml'
     shell: 
         """
-        samtools stats {input[0]} > {output[0]}
-        samtools stats {input[1]} > {output[1]}
+        samtools stats {input} > {output}
         """
 
-# TODO: fix the paths to reflect the correct inputs. This might require a dedicated function like those in `common.smk`
+
+rule samtools_merged_stats:
+    """ 
+    Calculate basic statistics about the merged BAM files.
+    """
+    input: join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.marked.merged.bam")
+    output: join(config['qc_dir'], "{accession}", "{aligner}", "{accession}.{aligner}.merged.bam.stats")
+    conda: '../envs/samtools.yml'
+    shell: 
+        """
+        samtools stats {input} > {output}
+        """
+
+
+def get_multiqc_targets():
+    """
+    This function generates all of the target files
+    as input to the multiqc rule. This needs a 
+    dedicated function because there are an uneven 
+    number of extra runs per sample.
+    """
+    samples_df = pd.read_csv(config['samples']['file'])
+    input_set = set()
+    for index, row in samples_df.iterrows():
+        # Fastqc for untrimmed and unfiltered library
+        input_set.add(join(config['qc_dir'], f"{row['Run']}-{row['Library']}", "fastqc-raw"))
+        # Fastqc post-trimming and basic quality filtering
+        input_set.add(join(config['qc_dir'], f"{row['Run']}-{row['Library']}", "fastqc-trim"))
+        # Trimmed read reports from fastp
+        input_set.add(join(config['qc_dir'], f"{row['Run']}-{row['Library']}", "fastp", f"{row['Run']}-{row['Library']}.fastp.se.json"))
+        # Filtered reads statistics from BBduk
+        input_set.add(join(config['qc_dir'], f"{row['Run']}-{row['Library']}", "BBduk", f"{row['Run']}-{row['Library']}.filter.se.stats"))
+        # Samtools stats for unmerged alignment
+        input_set.add(join(config['qc_dir'], f"{row['Run']}-{row['Library']}", "BWA", f"{row['Run']}-{row['Library']}.BWA.bam.stats"))
+        # Samtools stats for merged alignment
+        input_set.add(join(config['qc_dir'], f"{row['Run']}", "BWA", f"{row['Run']}.BWA.merged.bam.stats"))
+    
+    return list(input_set)
+
+
 rule multiqc:
     """
-    Collate all QC reports for all samples into a
-    single report. 
+    Gather all relevant library and alignment stats into a single place
+    that can be incorportated into the Snakemake report.
     """
-    input: 
-        qc=expand([join(config['qc_dir'], "{accession}", "fastqc"),
-                   join(config['qc_dir'], "{accession}", "{aligner}", "{accession}.{aligner}.sorted.bam.stats"),
-                   join(config['qc_dir'], "{accession}", "{aligner}", "{accession}.{aligner}.virus.sorted.bam.stats"),                  
-                   join(config['qc_dir'], "{accession}", "Picard", "{accession}.{aligner}.virus.metrics.txt")],
-                   accession=pd.read_csv(config['samples']['file'])['Run'], aligner=['BWA'])
+    input: qc = get_multiqc_targets()
     output: directory(join(config['qc_dir'], 'multiqc'))
     conda: '../envs/qc.yml'
     params: 
