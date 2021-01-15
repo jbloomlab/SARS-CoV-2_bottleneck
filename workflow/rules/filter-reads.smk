@@ -20,7 +20,7 @@ rule filter_reads_se:
     output: 
         matched=join(config['filter_dir'], "{accession}-{library}", "{accession}-{library}.filtered.fastq.gz"),
         unmatched=join(config['filter_dir'], "{accession}-{library}", "{accession}-{library}.unfiltered.fastq.gz"),
-        stats=join(config['qc_dir'], "{accession}-{library}", "BBduk", "{accession}-{library}.filter.stats")
+        stats=join(config['qc_dir'], "{accession}-{library}", "BBduk", "{accession}-{library}.filter.se.stats")
     threads: config['threads']['max_cpu']
     params: error=join(config['filter_dir'], "{accession}-{library}", "{accession}-{library}.error.log")
     conda: '../envs/filter.yml'
@@ -56,7 +56,7 @@ rule filter_reads_pe:
                  join(config['filter_dir'], "{accession}-{library}", "{accession}-{library}_2.filtered.fastq.gz")],
         unmatched=[join(config['filter_dir'], "{accession}-{library}", "{accession}-{library}_1.unfiltered.fastq.gz"), 
                    join(config['filter_dir'], "{accession}-{library}", "{accession}-{library}_2.unfiltered.fastq.gz")],
-        stats=join(config['qc_dir'], "{accession}-{library}", "BBduk", "{accession}-{library}.filter.stats")
+        stats=join(config['qc_dir'], "{accession}-{library}", "BBduk", "{accession}-{library}.filter.pe.stats")
     threads: config['threads']['max_cpu']
     params: error=join(config['filter_dir'], "{accession}-{library}", "{accession}-{library}.error.log")
     conda: '../envs/filter.yml'
