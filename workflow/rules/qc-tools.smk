@@ -5,15 +5,24 @@
 # Date: 10/31/2020
 #
 
-rule fastqc: 
+rule fastqc_raw: 
     """ Generate a QC report for unfiltered reads. 
     """
     input: get_avaliable_fastqs
-    output: directory(join(config['qc_dir'], "{accession}-{library}", "fastqc"))
+    output: directory(join(config['qc_dir'], "{accession}-{library}", "fastqc-raw"))
     conda: '../envs/qc.yml'
     shell: "mkdir -p {output}; fastqc {input} --outdir {output}"
 
 
+rule fastqc_trim: 
+    """ Generate a QC report for trimmed reads. 
+    """
+    input: get_avaliable_trimmed_fastqs 
+    output: directory(join(config['qc_dir'], "{accession}-{library}", "fastqc-trim"))
+    conda: '../envs/qc.yml'
+    shell: "mkdir -p {output}; fastqc {input} --outdir {output}"
+
+# TODO: Make sure the paths point to the correct BAM files. 
 rule samtools_stats:
     """ Calculate bam stats with samtools.
     """
@@ -28,7 +37,7 @@ rule samtools_stats:
         samtools stats {input[1]} > {output[1]}
         """
 
-
+# TODO: fix the paths to reflect the correct inputs. This might require a dedicated function like those in `common.smk`
 rule multiqc:
     """
     Collate all QC reports for all samples into a
