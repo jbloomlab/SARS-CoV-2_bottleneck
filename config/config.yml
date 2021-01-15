@@ -39,9 +39,6 @@ threads:
   fastq_download: 8
   pileup: 16
 
-# Filter fastq with kmer or align to multiple genomes
-filter_reads: TRUE
-
 # Remove duplicates with Picard
 remove_duplicates: false
 

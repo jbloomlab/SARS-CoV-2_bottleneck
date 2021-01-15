@@ -23,26 +23,3 @@ rule get_gtf:
     shell: 'wget -O - {params.ftp} | gunzip -c > {output}'
 
 
-rule cat_ref:
-    """ Concatenate virus/host genomes if both genomes are present.
-    """
-    input: 
-        virus_ref=join(config['ref_dir'], '{virus}.fa'),
-        host_ref=join(config['ref_dir'], '{host}.fa')
-    output: join(config['ref_dir'], '{virus}.{host}.fa')
-    shell: "cat {input.virus_ref} {input.host_ref} > {output}"
-
-
-rule cat_gtf:
-    """ 
-    Concatenate virus/host gtf files. 
-    This is primarily for `STAR` which requires 
-    custom GTF files, so this is not downstream of
-    `get_ref`. See run instructions for details. 
-    """
-    input: 
-        virus_gtf=join(config['gtf_dir'], '{virus}.gtf'),
-        host_gtf=join(config['gtf_dir'], '{host}.gtf')
-    output: join(config['gtf_dir'], '{virus}.{host}.gtf')
-    shell: "cat {input.virus_gtf} {input.host_gtf} > {output}"
-

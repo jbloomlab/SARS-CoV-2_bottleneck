@@ -13,8 +13,8 @@ rule bwa_align:
     on the status of `config[filter_reads]`.
     """
     input: 
-        reads=lambda wildcards: get_avaliable_filtered_fastqs(wildcards) if config['filter_reads'] else get_avaliable_trimmed_fastqs(wildcards),
-        genome=lambda wildcards: get_genome(wildcards, index = "BWA") if config['filter_reads'] else get_hybrid_genome(wildcards)
+        reads = get_avaliable_filtered_fastqs
+        genome = get_genome(index = "BWA") 
     output: join(config['align_dir'], "BWA", "{accession}-{library}", "{accession}-{library}.BWA.sorted.bam")
     threads: config['threads']['max_cpu']
     params: tmp=join(config['align_dir'], "BWA", "{accession}-{library}", "{accession}-{library}.final.tmp")
@@ -26,44 +26,6 @@ rule bwa_align:
             {input.reads} | \
             samtools sort -o {output} -T {params.tmp} - 
         """
-
-
-rule split_bam:
-    """ 
-    Split bam file into reads that map to virus (as identified
-    by the `contig` name) and reads that dont map to virus. 
-    """
-    input: join(config['align_dir'], "{aligner}", "{accession}-{library}", "{accession}-{library}.{aligner}.sorted.bam"),
-    output: virus_bam=join(config['align_dir'], "{aligner}", "{accession}-{library}", "{accession}-{library}.{aligner}.virus.sorted.bam"),
-            other_bam=join(config['align_dir'], "{aligner}", "{accession}-{library}", "{accession}-{library}.{aligner}.other.sorted.bam"),
-            virus_sam=temp(join(config['align_dir'], "{aligner}", "{accession}-{library}", "{accession}-{library}.{aligner}.virus.sorted.sam")),
-            other_sam=temp(join(config['align_dir'], "{aligner}", "{accession}-{library}", "{accession}-{library}.{aligner}.other.sorted.sam"))
-    params: contig=config['SARS2']['contig']
-    conda: '../envs/samtools.yml'
-    shell:
-        """
-        # Get the header of the bam file
-        samtools view -H {input} | tee {output.virus_sam} {output.other_sam}
-
-        # Extract only the reads that do map to virus
-        samtools view {input} \
-            | awk '$3== "{params.contig}"' \
-            >> {output.virus_sam} 
-
-        # Sort the results and convert to bam
-        samtools view -Sb {output.virus_sam} | \
-            samtools sort - -o {output.virus_bam}
-
-        # Extract only the reads that don't map to virus
-        samtools view {input} \
-            | awk '$3!= "{params.contig}"' \
-            >> {output.other_sam} 
-
-        # Sort the results and convert to bam
-        samtools view -Sb {output.other_sam} | \
-            samtools sort - -o {output.other_bam}
-        """
-
 
 rule mark_duplicates:
     """ 
