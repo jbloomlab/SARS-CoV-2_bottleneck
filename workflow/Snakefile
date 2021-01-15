@@ -23,12 +23,11 @@ configfile: "config/config.yml"
 include: "rules/common.smk"
 
 #### ----------------------- Targets ----------------------- ####
-localrules: all, fastqc_raw, fastqc_trim, trim_adapters_se
 
 rule all:
     input: 
         join(config['pileup_dir'], "pysam-variants.csv"),
-        get_fastqc_runs()
+        join(config['qc_dir'], 'multiqc')
           
         
 rule clean:
