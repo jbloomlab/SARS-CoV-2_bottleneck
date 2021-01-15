@@ -124,7 +124,7 @@ def get_avaliable_bams(wildcards):
     # Get the viral genome for a given accession
     library = np.unique(samples_df.loc[samples_df.Run == wildcards.accession, ["Library"]].values.flatten()).tolist()
 
-    return expand(join(config['align_dir'], "{{aligner}}", "{{accession}}-{library}", "{{accession}}-{library}.{{aligner}}.{{split}}.sorted.marked.bam"), library=library)
+    return expand(join(config['align_dir'], "{{aligner}}", "{{accession}}-{library}", "{{accession}}-{library}.{{aligner}}.sorted.marked.bam"), library=library)
 
 
 def get_fastqc_runs():
