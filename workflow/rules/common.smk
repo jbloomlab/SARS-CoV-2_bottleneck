@@ -30,6 +30,7 @@ def aggregate_csv(csv_list, out_csv):
 
     Try/Except to deal with empty CSVs.
     """
+    valid_csv_list = []
     for csv in csv_list:
         try:
             pd.read_csv(csv)
@@ -82,26 +83,6 @@ def get_avaliable_filtered_fastqs(wildcards):
                    join(config["filter_dir"], "{accession}-{library}", "{accession}-{library}_2.filtered.fastq.gz")], accession=wildcards.accession, library=wildcards.library)
      
 
-
-def get_hybrid_genome(wildcards):
-    """
-    This function determine which genomes to use or generate
-    for alignment of a given run using the `samples.csv` file.
-    """
-    # Read the metadata into Pandas dataframe
-    samples_df = pd.read_csv(config['samples']['file'])
-    # Get the viral genome for a given accession
-    virusname = samples_df.loc[samples_df.Run == wildcards.accession, ["Virus"]].values.flatten().tolist()[0]
-    # Get the host genome for a given accession
-    hostname = samples_df.loc[samples_df.Run == wildcards.accession, ["Host"]].values.flatten().tolist()[0]
-    # Handle sequences that do not need to be mapped to host\
-    if hostname == 'none':
-        # Virus only genome - just downloaded 
-        return expand(join(config['index_dir']['bwa'], '{virus}.fa'), virus=virusname)
-    # Virus and host genome - downloaded and concatenated
-    return expand(join(config['index_dir']['bwa'], '{virus}.{host}.fa'), virus=virusname, host=hostname)
-
-
 # TODO: Will break if the same accession needs multiple viral genomes
 def get_genome(wildcards, index = "samtools"):
     """ Function to get the correct genome for variant calling, indexed with samtools. 
@@ -144,24 +125,6 @@ def get_avaliable_bams(wildcards):
     library = np.unique(samples_df.loc[samples_df.Run == wildcards.accession, ["Library"]].values.flatten()).tolist()
 
     return expand(join(config['align_dir'], "{{aligner}}", "{{accession}}-{library}", "{{accession}}-{library}.{{aligner}}.sorted.marked.bam"), library=library)
-
-
-def get_fastqc_runs():
-    """ 
-    Get the combinations of accession and library for all
-    possible runs as an output of fastqc.
-    """
-    samples_df = pd.read_csv(config['samples']['file'])
-    file_list = []
-    for index, row in samples_df.iterrows():
-        file_list.append(join(config['qc_dir'], f"{row['Run']}-{row['Library']}", "fastqc-raw"))
-        file_list.append(join(config['qc_dir'], f"{row['Run']}-{row['Library']}", "fastqc-trim"))
-    return file_list
-
-
-
-
-
 
 
 
