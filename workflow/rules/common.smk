@@ -83,6 +83,7 @@ def get_hybrid_genome(wildcards):
     return expand(join(config['index_dir']['bwa'], '{virus}.{host}.fa'), virus=virusname, host=hostname)
 
 
+# TODO: Will break if the same accession needs multiple viral genomes
 def get_genome(wildcards, index = "samtools"):
     """ Function to get the correct genome for variant calling, indexed with samtools. 
     """
@@ -134,7 +135,8 @@ def get_fastqc_runs():
     samples_df = pd.read_csv(config['samples']['file'])
     file_list = []
     for index, row in samples_df.iterrows():
-        file_list.append(join(config['qc_dir'], f"{row['Run']}-{row['Library']}", "fastqc"))
+        file_list.append(join(config['qc_dir'], f"{row['Run']}-{row['Library']}", "fastqc-raw"))
+        file_list.append(join(config['qc_dir'], f"{row['Run']}-{row['Library']}", "fastqc-trim"))
     return file_list
 
 
