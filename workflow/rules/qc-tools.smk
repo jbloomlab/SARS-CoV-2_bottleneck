@@ -5,6 +5,8 @@
 # Date: 10/31/2020
 #
 
+localrules: format_multiqc
+
 rule fastqc_raw: 
     """ Generate a QC report for unfiltered reads. 
     """
@@ -92,3 +94,16 @@ rule multiqc:
             -f -o {output} \
             -n {params.basename} 
         """
+
+rule format_multiqc:
+    """
+    Runs an Rscript that formats relevant multiqc
+    stats for more plotting and analysis. 
+    """
+    input: join(config['qc_dir'], 'multiqc')
+    output: join(config['qc_dir'], 'formatted_multiqc_data.csv')
+    conda: '../envs/r.yml'
+    script: "../scripts/format_multiqc.R"
+
+
+
