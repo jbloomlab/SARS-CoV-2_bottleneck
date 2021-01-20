@@ -4,6 +4,20 @@
 # Email: wwh22@uw.edu
 # Date: 10/19/2020
 #
+
+rule samtools_mpileup:
+    """ 
+    Calculate the pileup of bases at every position in virus genome.
+    """
+    input: bam=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.marked.merged.bam"),
+           bai=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.marked.merged.bam.bai"),        
+           genome=get_genome
+    output: join(config['pileup_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.mpileup.txt")
+    params: score=config['BQ']
+    conda: '../envs/samtools.yml'
+    shell: "samtools mpileup -d 0 -E --excl-flags UNMAP,SECONDARY,QCFAIL -q {params.score} -Q {params.score} -f {input.genome} {input.bam} -O -s --reverse-del -a -o {output}"
+
+
 rule varscan_calling:
     """ SNP calling with Varscan. Parameters are controlled from the config file.  
     """
@@ -54,8 +68,8 @@ rule varscan_calling:
 rule lofreq_calling:
     """ Call variants (SNP and indels) with the reference. Using only defaut filtering.
     """
-    input: bam=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.sorted.marked.bam"),
-           bai=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.virus.sorted.marked.bam.bai"),        
+    input: bam=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.marked.merged.bam"),
+           bai=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.marked.merged.bam.bai"),        
            genome=get_genome
     output: join(config['variant_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.lofreq.vcf")
     params: 
@@ -153,15 +167,6 @@ rule aggregate_variants:
     """
     input: expand([join(config['variant_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.{caller}.ann.csv")], accession=pd.read_csv(config['samples']['file'])['Run'], aligner=['BWA'], caller=['varscan', 'lofreq'])
     output: join(config['variant_dir'], "variants.csv")
-    run:
-        paths = []
-        for f in input:
-            try:
-                pd.read_csv(f)
-                paths.append(f)
-            except:
-                pass
-        df = pd.concat(map(pd.read_csv, paths))
-        df.to_csv(output[0], index = False)
+    run: aggregate_csv(input, output)
 
 
