@@ -27,9 +27,9 @@ include: "rules/common.smk"
 rule all:
     input: 
         join(config['pileup_dir'], "pysam-variants.csv"),
-        join(config['qc_dir'], 'multiqc')
-          
-        
+        join(config['qc_dir'], 'formatted_multiqc_data.csv'),  
+        join(config['variant_dir'], "variants.csv")
+
 rule clean:
     shell:
         """
@@ -48,5 +48,5 @@ include: "rules/filter-reads.smk"
 include: "rules/align-reads.smk"
 include: "rules/calculate-coverage.smk"
 include: "rules/calculate-pileup.smk"
-
+include: "rules/call-variants.smk"
 
