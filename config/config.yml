@@ -48,6 +48,11 @@ BQ: 25
 # Bin size for coverage graphs
 bin_size: 50
 
+# Parameters for variant calling.
+min_coverage: 100
+min_reads_supporting: 10
+min_allele_frequency: 0.005
+strand_bias_filter: 1
 #### ------------------------- Dirs ------------------------ ####
 
 # ++ Results Directoties ++ #
@@ -57,6 +62,7 @@ filter_dir: results/filtered
 align_dir: results/aligned
 qc_dir: results/qc
 coverage_dir: results/coverage
+variant_dir: results/variants
 pileup_dir: results/pileup
 
 # ++ Config Directoties ++ #
