@@ -53,6 +53,12 @@ min_coverage: 100
 min_reads_supporting: 10
 min_allele_frequency: 0.005
 strand_bias_filter: 1
+
+# Kmer lengths for consensus assembly - tune to read length
+kmer:
+    error_correct: 24
+    extend_reads: 31
+    assemble_contigs: 50
 #### ------------------------- Dirs ------------------------ ####
 
 # ++ Results Directoties ++ #
@@ -64,6 +70,7 @@ qc_dir: results/qc
 coverage_dir: results/coverage
 variant_dir: results/variants
 pileup_dir: results/pileup
+consensus_dir: results/consensus
 
 # ++ Config Directoties ++ #
 tools: config/tools
