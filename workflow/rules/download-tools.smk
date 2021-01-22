@@ -68,4 +68,3 @@ rule build_SnpEff:
         java -Xss100M -Xmx8g -jar {input.snpeff} build -gtf22 -v {wildcards.genome}
         """
 
-

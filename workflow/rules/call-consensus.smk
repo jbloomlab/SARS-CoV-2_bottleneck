@@ -71,3 +71,22 @@ rule tadpole_assemble_reads:
     params: kmer = config['kmer']['assemble_contigs']
     conda: '../envs/filter.yml'
     shell: "tadpole.sh in={input} out={output} k={params.kmer}"
+
+
+rule bcftools_consensus:
+    """
+    Incorporate variants into the reference sequence from lofreq. 
+    Lofreq is used here becuase it is fairly accurate and it 
+    has indel re-alignemnt and indels. 
+    """
+    input: 
+        vcf=join(config['variant_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.lofreq.vcf"),
+        genome=get_genome
+    output: join(config['consensus_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.consensus.fa")
+    conda: '../envs/consensus.yml'
+    shell:
+        """
+        bgzip -c {input.vcf} > {input.vcf}.gz
+        tabix -p vcf {input.vcf}.gz
+        cat {input.genome} | bcftools consensus {input.vcf}.gz > {output}
+        """
