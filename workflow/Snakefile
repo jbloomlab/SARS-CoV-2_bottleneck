@@ -32,7 +32,8 @@ rule all:
         join(config['coverage_dir'], "merged.bedgraph"),
         join(config['coverage_dir'], "coverage.stats"),
         join(config['coverage_dir'], "merged.average.depth"),
-        join(config['coverage_dir'], "merged.depth")
+        join(config['coverage_dir'], "merged.depth"),
+        expand(join(config["consensus_dir"], "{accession}", "{accession}.contigs.fa"), accession=pd.read_csv(config['samples']['file'])['Run'])
 
 rule clean:
     shell:
@@ -53,4 +54,4 @@ include: "rules/align-reads.smk"
 include: "rules/calculate-coverage.smk"
 include: "rules/calculate-pileup.smk"
 include: "rules/call-variants.smk"
-
+include: "rules/call-consensus.smk"
