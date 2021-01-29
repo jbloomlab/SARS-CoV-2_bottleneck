@@ -5,7 +5,7 @@
 # Date: 10/31/2020
 #
 
-localrules: format_multiqc
+localrules: format_multiqc, aggregate_filtered_data
 
 rule fastqc_raw: 
     """ Generate a QC report for unfiltered reads. 
@@ -95,15 +95,52 @@ rule multiqc:
             -n {params.basename} 
         """
 
+def get_filtering_stats():
+    """
+    Get the avaliable filtered stats.
+    """
+    samples_df = pd.read_csv(config['samples']['file'])
+    input_set = set()
+    for index, row in samples_df.iterrows():
+        # Filtered reads statistics from BBduk
+        input_set.add(join(config['qc_dir'], f"{row['Run']}-{row['Library']}", "BBduk", f"{row['Run']}-{row['Library']}.filter.se.stats"))
+    return list(input_set)
+
+
+rule aggregate_filtered_data:
+    """
+    Multiqc doesn't aggregate the filtered data into 
+    a single dataframe. This rule does that with a 
+    simple pythton script before everything is collated
+    in the rule below.
+    """
+    input: get_filtering_stats()
+    output: join(config['qc_dir'], "BBduk_filtered_reads.csv")
+    run:
+        filtered_list = []
+        for file_path in input:
+            metadata = re.split('\.|_|-|/', file_path) 
+            with open(file_path) as file:
+                for line in file:
+                    if line.strip().startswith("#Total"):
+                        total_reads = int(line.split()[-1])
+                    elif line.strip().startswith("#Matched"):
+                        matched_reads = int(line.split()[1])
+            datatuple = (metadata[2], metadata[3], metadata[4], total_reads, matched_reads, matched_reads/total_reads)
+            filtered_list.append(datatuple)
+        df = pd.DataFrame(filtered_list, columns=['sample', 'replicate', 'library', 'total_reads_pre_filtering', 'filtered_reads', 'percent_filtered_viral_reads'])
+        df.to_csv(output[0], index = False) 
+
+
 rule format_multiqc:
     """
     Runs an Rscript that formats relevant multiqc
     stats for more plotting and analysis. 
     """
-    input: join(config['qc_dir'], 'multiqc')
+    input: 
+        join(config['qc_dir'], 'multiqc'),
+        join(config['qc_dir'], 'multiqc',  "BBduk_filtered_reads.csv")
     output: join(config['qc_dir'], 'formatted_multiqc_data.csv')
     conda: '../envs/r.yml'
     script: "../scripts/format_multiqc.R"
-
-
 
