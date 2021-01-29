@@ -33,8 +33,8 @@ rule all:
         join(config['coverage_dir'], "coverage.stats"),
         join(config['coverage_dir'], "merged.average.depth"),
         join(config['coverage_dir'], "merged.depth"),
-        expand(join(config["consensus_dir"], "{accession}", "{accession}.contigs.fa"), accession=pd.read_csv(config['samples']['file'])['Run']),
-        expand(join(config['consensus_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.consensus.fa"), accession=pd.read_csv(config['samples']['file'])['Run'], aligner="BWA")
+        join(config['consensus_dir'], "aligned_consensus.fa"),
+        join(config['qc_dir'], "BBduk_filtered_reads.csv")
 
 rule clean:
     shell:
