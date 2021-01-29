@@ -10,10 +10,10 @@ require("knitr")
 knitr::opts_chunk$set(echo = FALSE)
 
 ## ==== Important file paths ==== ##
-multiqc.filepath = "../../config/data/2020-08-07_multiQC-data.csv" # QC data (manually prepared from MultiQC) from replicates
-coverage.filepath = "../../config/data/2020-09-15_merged.bedgraph" # Data on the average depth of coverage in 50 KB bins
-variant.filepath = "../../config/data/2020-09-15_variants.csv" # Combined variant calls from varscan, lofreq, STAR, and BWA
-pileup.filepath = "../../config/data/2020-09-15_raw-variants.csv" # Variants identified from pileup files
+multiqc.filepath = "../../../config/data/2020-08-07_multiQC-data.csv" # QC data (manually prepared from MultiQC) from replicates
+coverage.filepath = "../../../config/data/2020-09-15_merged.bedgraph" # Data on the average depth of coverage in 50 KB bins
+variant.filepath = "../../../config/data/2020-09-15_variants.csv" # Combined variant calls from varscan, lofreq, STAR, and BWA
+pileup.filepath = "../../../config/data/2020-09-15_raw-variants.csv" # Variants identified from pileup files
 
 ```
 
