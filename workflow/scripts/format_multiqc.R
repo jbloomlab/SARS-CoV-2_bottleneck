@@ -26,6 +26,7 @@ samtools.stats = "results/qc/multiqc/multiqc_report_data/multiqc_samtools_stats.
 fastqc.stats = "results/qc/multiqc/multiqc_report_data/multiqc_fastqc.txt"
 picard.stats = "results/qc/multiqc/multiqc_report_data/multiqc_picard_dups.txt"
 alignment.stats = "results/qc/multiqc/multiqc_report_data/mqc_samtools_alignment_plot_1.txt"
+bbduk.stats = "results/qc/multiqc/BBduk_filtered_reads.csv"
 sources = "results/qc/multiqc/multiqc_report_data/multiqc_sources.txt"
 
 ## ==== Process the multiqc data files ==== ##
@@ -65,9 +66,12 @@ picard.df = read_tsv(picard.stats) %>%
          duplicates = "UNPAIRED_READ_DUPLICATES",
          percent_duplicated = "PERCENT_DUPLICATION")
 
+# Data from BBduk – what % of the reads were viral? 
+bbduk.df = read_csv(bbduk.stats)
+
 # Join everything together
 qc.df = left_join(samtools.df, full_join(picard.df, fastqc.df, by = c("sample", "replicate", "library")), by = c("sample", "replicate", "library"))
-
+qc.df = left_join(qc.df, bbduk.df, by = c("sample", "replicate", "library"))
 ## ==== Export the results ==== ##
 
 write_csv(qc.df, snakemake@output[[1]])
