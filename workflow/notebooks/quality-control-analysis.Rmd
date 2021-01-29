@@ -21,7 +21,7 @@ knitr::opts_chunk$set(echo = FALSE)
 ## ==== Install Required Packages ==== ##
 
 ## List of all packages needed -- non-BioManager installed
-packages = c("tidyverse", "ggrepel", "plotly")
+packages = c("tidyverse")
 ## Check that packages are installed, if not, install them
 installed_packages <- packages %in% rownames(installed.packages())
 if (any(installed_packages == FALSE)) {
@@ -29,5 +29,70 @@ if (any(installed_packages == FALSE)) {
 }
 ## Packages loading
 invisible(lapply(c(packages), library, character.only = TRUE))
+
+```
+
+```{r Paths to data, echo = FALSE}
+
+# Path to a processed data frame from the tool Multiqc.
+# This isn't exhaustive for all QC data collated by this tool. 
+# For a quick look at individual samples, there is also an HTML
+# repot generated in the `results/qc` directory.
+multiqc.data = "../../results/qc/formatted_multiqc_data.csv"
+
+```
+
+```{r Load in data, echo = FALSE, message = FALSE}
+
+multiqc.df = read_csv(multiqc.data)
+
+# Data from before the individual libraries (same) were merged into one.
+multiqc.before.merge = multiqc.df %>% filter(library != "merged")
+# Data from after the individual libraries (same) were merged into one.
+multiqc.after.merge = multiqc.df %>% filter(library == "merged")
+# Colors 
+experiment.colors = c("#000000", "#7a7a7a")
+```
+
+
+```{r Run Size, echo = FALSE, message = FALSE, fig.width=15, fig.height=5, fig.align='center'}
+
+# The number of mapped reads for each sample. (1) correspond to the initial sequencing. (2) corresponds to the supplementary sequencing.
+# `merged` corresponds to the combindation of the two libraries. 
+multiqc.df %>% 
+  ggplot(aes(x = as.factor(sample), y = reads_mapped, fill = as.factor(replicate))) +
+    geom_bar(stat = "identity", position = position_dodge()) + 
+    facet_wrap(~library) +
+    scale_fill_manual(values = experiment.colors) +
+    xlab("Sample") +
+    ylab("Number of Mapped Reads") +
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=13)) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+    theme(legend.position="none") +
+    theme(axis.text.x=element_text(angle=45, hjust=1))
+
+```
+
+```{r Combined Run Size, echo = FALSE, message = FALSE, fig.width=10, fig.height=5, fig.align='center'}
+
+# Just the `merged` samples for a better look.
+multiqc.after.merge %>% 
+  ggplot(aes(x = as.factor(sample), y = reads_mapped, fill = as.factor(replicate))) +
+    geom_bar(stat = "identity", position = position_dodge()) + 
+    scale_fill_manual(values = experiment.colors) +
+    xlab("Sample") +
+    ylab("Number of Mapped Reads") +
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=13)) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+    theme(legend.position="none") +
+    theme(axis.text.x=element_text(angle=45, hjust=1))
 
 ```
