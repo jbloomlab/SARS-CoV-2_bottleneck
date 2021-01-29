@@ -83,10 +83,34 @@ rule bcftools_consensus:
         vcf=join(config['variant_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.lofreq.vcf"),
         genome=get_genome
     output: join(config['consensus_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.consensus.fa")
+    params: name=">{accession}.{aligner}"
     conda: '../envs/consensus.yml'
     shell:
         """
         bgzip -c {input.vcf} > {input.vcf}.gz
         tabix -p vcf {input.vcf}.gz
         cat {input.genome} | bcftools consensus {input.vcf}.gz > {output}
+        sed -i "1s/.*/{params.name}/" {output}
         """
+
+
+rule join_consensus: 
+    """
+    Join the consensus sequences from bcftools 
+    for multiple sequence alignment with MAFFT.
+    """
+    input: expand(join(config['consensus_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.consensus.fa"), accession=list(set(pd.read_csv(config['samples']['file'])['Run'])), aligner=['BWA'])
+    output: join(config['consensus_dir'], "joined_consensus.fa")
+    shell: "cat {input} > {output}"
+
+
+rule align_consensus:
+    """
+    Perform multiple sequence alignment with 
+    MAFFT. 
+    """
+    input: join(config['consensus_dir'], "joined_consensus.fa")
+    output: join(config['consensus_dir'], "aligned_consensus.fa")
+    conda: '../envs/consensus.yml'
+    shell: "mafft {input} > {output}"
+

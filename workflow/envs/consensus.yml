@@ -3,3 +3,4 @@ channels:
 dependencies:
   - samtools=1.10
   - bcftools=1.10.2
+  - mafft=7.471
