@@ -1,0 +1,52 @@
+---
+title: "Phylogenetic Analysis"
+author: "Will Hannon"
+date: "1/11/2021"
+output: html_document
+---
+
+This notebook contains an analysis of phylogenetic relationship between consensus sequences from the `SARS-CoV-2_Bottleneck` project. The main goals of this notebook are to characterize: 
+
+1. Build an easily interpretable phylogenic tree of avaliable samples.
+2. Infere the transmission chain between patients.  
+
+```{r Setup, include=FALSE}
+require("knitr")
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r Required Packages, message=FALSE, warning=FALSE, echo=FALSE}
+
+## ==== Install Required Packages ==== ##
+
+## List of all packages needed -- non-BioManager installed
+packages = c("ggtree")
+## Check that packages are installed, if not, install them
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+## Packages loading
+invisible(lapply(c(packages), library, character.only = TRUE))
+
+```
+
+```{r Filepaths, include=FALSE}
+
+## ==== File paths input data ==== ##
+
+# Phylogenetic tree from iQtree
+tree.data = "../../results/consensus/merged.consenus.fa.treefile"
+
+```
+
+For reference, the longest branch is only like 11 substitutions in the 30,000 base genome. 
+
+```{r Phylogeny, fig.width=15, fig.height=5, fig.align='center'}
+
+tree = read.tree(tree.data)
+ggtree(tree, layout='rectangular') +
+  geom_tiplab(color='firebrick')
+
+```
+
