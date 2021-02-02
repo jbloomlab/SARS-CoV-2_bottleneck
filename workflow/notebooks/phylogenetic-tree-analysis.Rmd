@@ -42,7 +42,7 @@ tree.data = "../../results/consensus/merged.consenus.fa.treefile"
 
 For reference, the longest branch is only like 11 substitutions in the 30,000 base genome. 
 
-```{r Phylogeny, fig.width=15, fig.height=5, fig.align='center'}
+```{r Phylogeny, message=FALSE, warning=FALSE, fig.width=10, fig.height=5, fig.align='center'}
 
 tree = read.tree(tree.data)
 ggtree(tree, layout='rectangular') +

@@ -1,0 +1,39 @@
+---
+title: "Coverage Analysis"
+author: "Will Hannon"
+date: "1/29/2021"
+output: html_document
+---
+
+This notebook contains a genomic coverage analysis of sequencing runs for the `SARS-CoV-2_Bottleneck` project. The main goals of this notebook are to characterize: 
+
+1. What percent of the genome is covered by an adequeate depth for variant calling in each run.
+2. Are there unsual patterns of coverage that suggest underlying biases?  
+3. Identify samples of low coverage to exclude from the final analysis.
+
+```{r Setup, include=FALSE}
+require("knitr")
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r Required Packages, message=FALSE, warning=FALSE, echo=FALSE}
+
+## ==== Install Required Packages ==== ##
+
+## List of all packages needed -- non-BioManager installed
+packages = c("tidyverse")
+## Check that packages are installed, if not, install them
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+## Packages loading
+invisible(lapply(c(packages), library, character.only = TRUE))
+
+```
+
+```{r Paths to data, echo = FALSE}
+
+
+
+```

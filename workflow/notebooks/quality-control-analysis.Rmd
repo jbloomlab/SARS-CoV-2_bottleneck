@@ -39,27 +39,35 @@ invisible(lapply(c(packages), library, character.only = TRUE))
 # For a quick look at individual samples, there is also an HTML
 # repot generated in the `results/qc` directory.
 multiqc.data = "../../results/qc/formatted_multiqc_data.csv"
+# Path to the data for what % of each library are filted out by BBduk
+filter.data = "../../results/qc/BBduk_filtered_reads.csv"
 
 ```
 
 ```{r Load in data, echo = FALSE, message = FALSE}
 
+# QC data from multiqc
 multiqc.df = read_csv(multiqc.data)
-
+# QC data from BBduk, collated separatley
+filter.df = read_csv(filter.data) %>% mutate(library = as.character(library))
+# Join the BBduk data with the multiqc data
+qc.df = left_join(multiqc.df, filter.df, by = c("sample", "replicate", "library"))
 # Data from before the individual libraries (same) were merged into one.
-multiqc.before.merge = multiqc.df %>% filter(library != "merged")
+qc.before.merge = qc.df %>% filter(library != "merged")
 # Data from after the individual libraries (same) were merged into one.
-multiqc.after.merge = multiqc.df %>% filter(library == "merged")
+qc.after.merge = qc.df %>% filter(library == "merged")
+
 # Colors 
 experiment.colors = c("#000000", "#7a7a7a")
 ```
 
+The following plot is the size of each library (how many mapped SARS-CoV-2 reads are there per patient per replicate) both before and after merging the separate sequencing attempts. The facet labled `1` shows each library from the initial round of sequencing. The facet labled `2` shows the extra sequencing we requested from Pavitra to even out the coverage between replicates. It appears the have made most samples more evenly covered, with the notable exception of patient `10027`.
 
 ```{r Run Size, echo = FALSE, message = FALSE, fig.width=15, fig.height=5, fig.align='center'}
 
 # The number of mapped reads for each sample. (1) correspond to the initial sequencing. (2) corresponds to the supplementary sequencing.
 # `merged` corresponds to the combindation of the two libraries. 
-multiqc.df %>% 
+qc.df %>% 
   ggplot(aes(x = as.factor(sample), y = reads_mapped, fill = as.factor(replicate))) +
     geom_bar(stat = "identity", position = position_dodge()) + 
     facet_wrap(~library) +
@@ -69,7 +77,7 @@ multiqc.df %>%
     theme_classic() +
     theme(legend.position="bottom", legend.box = "horizontal") +
     theme(legend.box.background = element_rect(colour = "black")) +
-    theme(text=element_text(size=13)) +
+    theme(text=element_text(size=18)) +
     theme(plot.title = element_text(hjust = 0.5)) +
     theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
     theme(legend.position="none") +
@@ -77,10 +85,12 @@ multiqc.df %>%
 
 ```
 
-```{r Combined Run Size, echo = FALSE, message = FALSE, fig.width=10, fig.height=5, fig.align='center'}
+Below is the same plot as above, but only showing the library size between replicates after combining the extra sequencing. Library size is more comparable between replicates now. However, it's certainly not perfect. 
+
+```{r Combined Run Size, echo = FALSE, message = FALSE, fig.width=7, fig.height=3, fig.align='center'}
 
 # Just the `merged` samples for a better look.
-multiqc.after.merge %>% 
+qc.after.merge %>% 
   ggplot(aes(x = as.factor(sample), y = reads_mapped, fill = as.factor(replicate))) +
     geom_bar(stat = "identity", position = position_dodge()) + 
     scale_fill_manual(values = experiment.colors) +
@@ -89,10 +99,63 @@ multiqc.after.merge %>%
     theme_classic() +
     theme(legend.position="bottom", legend.box = "horizontal") +
     theme(legend.box.background = element_rect(colour = "black")) +
-    theme(text=element_text(size=13)) +
+    theme(text=element_text(size=18)) +
     theme(plot.title = element_text(hjust = 0.5)) +
     theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
     theme(legend.position="none") +
     theme(axis.text.x=element_text(angle=45, hjust=1))
 
 ```
+
+The percent of the sample that was filtered is pretty all over the place, with some samples nearly 100% SARS-CoV-2 and others closer to 5% SARS-CoV-2. Interestingly, there are some pretty bid discrepancies between replicates. I wonder if this indicates low template number in some way? Perhaps high template number samples are more resistant to differences in the percentage of SARS-CoV-2 reads? This is the average of different sequening attemps for each sample/replicate pair.
+
+```{r Percent Filtered, echo = FALSE, message = FALSE, fig.width=7, fig.height=3, fig.align='center'}
+
+# Just the `merged` samples for a better look.
+qc.before.merge %>% 
+  ggplot(aes(x = as.factor(sample), y = percent_filtered_viral_reads, fill = as.factor(replicate))) +
+    geom_bar(stat = "identity", position = position_dodge()) + 
+    scale_fill_manual(values = experiment.colors) +
+    xlab("Sample") +
+    ylab("Number of Mapped Reads") +
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=18)) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+    theme(legend.position="none") +
+    theme(axis.text.x=element_text(angle=45, hjust=1))
+
+```
+
+Below is a plot of the average base quality of each sequencing run. The average base quality of all samples falls above the target score of 25, which implies an error rate of ~0.003.
+
+```{r Average Base Quality, echo = FALSE, message = FALSE, fig.width=7, fig.height=3, fig.align='center'}
+
+# Just the `merged` samples for a better look.
+qc.after.merge %>% 
+  ggplot(aes(x = as.factor(sample), y = average_quality, fill = as.factor(replicate))) +
+    geom_bar(stat = "identity", position = position_dodge()) +
+    geom_hline(yintercept = 25, col = "red", linetype = 3, size = 2) +
+    scale_fill_manual(values = experiment.colors) +
+    xlab("Sample") +
+    ylab("Number of Mapped Reads") +
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=18)) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+    theme(legend.position="none") +
+    theme(axis.text.x=element_text(angle=45, hjust=1))
+
+```
+
+
+
+
+
+
+
+
