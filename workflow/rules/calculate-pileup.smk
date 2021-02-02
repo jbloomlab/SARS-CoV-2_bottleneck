@@ -16,7 +16,7 @@ rule get_pileup:
     output: join(config['pileup_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.pysam.pileup.csv")
     params: score=config['BQ']
     conda: "../envs/pysam.yml"
-    script: "../scripts/pysam_pileup.py"
+    script: "../scripts/process_pysam_pileup.py"
 
     
 rule aggregate_pileup:
