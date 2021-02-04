@@ -41,6 +41,10 @@ invisible(lapply(c(packages), library, character.only = TRUE))
 multiqc.data = "../../results/qc/formatted_multiqc_data.csv"
 # Path to the data for what % of each library are filted out by BBduk
 filter.data = "../../results/qc/BBduk_filtered_reads.csv"
+# Path to sample information
+sample.data = "../../config/samples.csv"
+# Path to boat metadata
+boat.data = "../../config/boat_metadata.csv"
 
 ```
 
@@ -56,6 +60,12 @@ qc.df = left_join(multiqc.df, filter.df, by = c("sample", "replicate", "library"
 qc.before.merge = qc.df %>% filter(library != "merged")
 # Data from after the individual libraries (same) were merged into one.
 qc.after.merge = qc.df %>% filter(library == "merged")
+
+# Sample and boat information
+sample.df = read_csv(sample.data) %>% select(LibraryLayout, Virus, Host, Source, spID) %>% distinct()
+boat.df = read_csv(boat.data) %>% rename(spID = "SpID.x")
+metadata.df = full_join(boat.df, sample.df, by = "spID") %>% 
+  mutate(Included = if_else(is.na(Source), "Not Included", "Included"))
 
 # Colors 
 experiment.colors = c("#000000", "#7a7a7a")
@@ -140,7 +150,7 @@ qc.after.merge %>%
     geom_hline(yintercept = 25, col = "red", linetype = 3, size = 2) +
     scale_fill_manual(values = experiment.colors) +
     xlab("Sample") +
-    ylab("Number of Mapped Reads") +
+    ylab("Average Quality Score (Phred)") +
     theme_classic() +
     theme(legend.position="bottom", legend.box = "horizontal") +
     theme(legend.box.background = element_rect(colour = "black")) +

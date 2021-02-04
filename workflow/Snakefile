@@ -23,6 +23,7 @@ configfile: "config/config.yml"
 include: "rules/common.smk"
 
 #### ----------------------- Targets ----------------------- ####
+samples = list(set(pd.read_csv(config['samples']['file'])['Run']))
 
 rule all:
     input: 

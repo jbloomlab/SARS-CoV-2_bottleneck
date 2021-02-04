@@ -27,7 +27,7 @@ rule samtools_depth:
 rule merge_depth:
     """ Merge the samtools depth tables for all of the accessions into a single file.
     """
-    input: expand(join(config['coverage_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.depth"), accession=pd.read_csv(config['samples']['file'])['Run'], aligner=['BWA'])
+    input: expand(join(config['coverage_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.depth"), accession=samples, aligner=['BWA'])
     output: depth=join(config['coverage_dir'], "merged.depth"),
             header=temp(join(config['coverage_dir'], "merged.depth.tmp"))
     shell:
@@ -55,7 +55,7 @@ rule average_depth:
 rule merge_average_depth:
     """ Merge the samtools depth tables for all of the accessions into a single file.
     """
-    input: expand(join(config['coverage_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.average.depth"), accession=pd.read_csv(config['samples']['file'])['Run'], aligner=['BWA'])
+    input: expand(join(config['coverage_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.average.depth"), accession=samples, aligner=['BWA'])
     output: depth=join(config['coverage_dir'], "merged.average.depth"),
             header=temp(join(config['coverage_dir'], "merged.average.depth.tmp"))
     shell:
@@ -66,7 +66,7 @@ rule merge_average_depth:
         """
 
 rule coverage_stats: 
-    input: expand(join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.marked.merged.bam"), accession=pd.read_csv(config['samples']['file'])['Run'], aligner=['BWA'])
+    input: expand(join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.marked.merged.bam"), accession=samples, aligner=['BWA'])
     output: join(config['coverage_dir'], "coverage.stats")
     params: score=config['BQ']
     conda: '../envs/samtools.yml'

@@ -34,16 +34,18 @@ invisible(lapply(c(packages), library, character.only = TRUE))
 
 ```{r Paths to data, echo = FALSE}
 
-a = "../../results/coverage/coverage.stats"
-b = "../../results/coverage/merged.average.depth"
-c = "../../results/coverage/merged.bedgraph"
-d = "../../results/coverage/merged.depth"
+stats.data = "../../results/coverage/coverage.stats" # Samtools stats
+average.depth.data = "../../results/coverage/merged.average.depth" # Samtools average depth
+percent.coverage.data = "../../results/coverage/merged.depth" # Samtools depth 
 
 ```
 
 ```{r Format data, include=FALSE, warning=FALSE, message=FALSE}
 
-read_tsv(b) %>%  View()
+stats.df = read_tsv(stats.data)
+average.depth.df = read.table(average.depth.data, header = T)
+percent.coverage.df = read.table(percent.coverage.data, header = T)
 
 ```
+
 
