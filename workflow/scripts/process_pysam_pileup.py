@@ -25,90 +25,6 @@ import re #regular expressions
 
 ## === Functions === ##
 
-def translate(codon):
-    """
-    Translate a three letter DNA string into 
-    a one letter amino acid code. 
-
-    Parameters
-    ----------
-    codon : str
-        three letter DNA sequence
-
-    Returns
-    -------
-    str
-        one letter amino acid code
-
-    Raises
-    ------
-    AssertionError
-        error if codon sequence is invalid
-        
-    """
-    
-    table = { 
-        'ATA':'I', 'ATC':'I', 'ATT':'I', 'ATG':'M', 
-        'ACA':'T', 'ACC':'T', 'ACG':'T', 'ACT':'T', 
-        'AAC':'N', 'AAT':'N', 'AAA':'K', 'AAG':'K', 
-        'AGC':'S', 'AGT':'S', 'AGA':'R', 'AGG':'R',                  
-        'CTA':'L', 'CTC':'L', 'CTG':'L', 'CTT':'L', 
-        'CCA':'P', 'CCC':'P', 'CCG':'P', 'CCT':'P', 
-        'CAC':'H', 'CAT':'H', 'CAA':'Q', 'CAG':'Q', 
-        'CGA':'R', 'CGC':'R', 'CGG':'R', 'CGT':'R', 
-        'GTA':'V', 'GTC':'V', 'GTG':'V', 'GTT':'V', 
-        'GCA':'A', 'GCC':'A', 'GCG':'A', 'GCT':'A', 
-        'GAC':'D', 'GAT':'D', 'GAA':'E', 'GAG':'E', 
-        'GGA':'G', 'GGC':'G', 'GGG':'G', 'GGT':'G', 
-        'TCA':'S', 'TCC':'S', 'TCG':'S', 'TCT':'S', 
-        'TTC':'F', 'TTT':'F', 'TTA':'L', 'TTG':'L', 
-        'TAC':'Y', 'TAT':'Y', 'TAA':'*', 'TAG':'*', 
-        'TGC':'C', 'TGT':'C', 'TGA':'*', 'TGG':'W', 
-    } 
-    
-    assert codon in table.keys(), "Not a valid codon sequence."
-    
-    return table[codon]
-
-
-def mutate(codon, alt, index):
-    """
-    Replace (mutate) a base in a codon with an 
-    alternate base. 
-        
-    Parameters
-    ----------
-    codon : str
-        three letter DNA sequence
-        
-    alt : str
-        alternative base
-        
-    index : int
-        index of the alt base in codon (0|1|2). 
-
-    Returns
-    -------
-    str
-        codon with alternative base
-
-    Raises
-    ------
-    AssertionError
-        error if index is not valid (0|1|2)
-        
-    AssertionError
-        error if base is not valid (A|T|C|G)
-        
-    """
-    
-    assert index in [0,1,2], "Not a valid index."
-    
-    assert alt in ["A", "T", "C", "G"], "Not a valid base."
-    
-    return "".join([alt if i == index else b for i,b in enumerate(codon)])
-
-
 def check_read(read):
     """
     Helper function to decide what reads should
@@ -138,11 +54,10 @@ def check_read(read):
         return True
         
     
-def build_af_df(filepath, 
+def identify_snps(filepath, 
                 callback_function = check_read, 
                 ref = "NC_045512.2", 
                 ref_path = "../../config/ref/SARS2.fa", 
-                minimum_AF = 0.01, 
                 minimum_qual = 25):
     """
     Read in BAM file and convert to a dataframe containing the frequency of 
@@ -162,12 +77,9 @@ def build_af_df(filepath,
         
     ref_path : str
         path to the reference genome as fasta
-        
-    minimum_AF : float
-        minimum allele frequency to include allele in dataframe
-        
+         
     minimum_qual : int
-        minimum QUAL score to count read at a position.
+        minimum QUAL score to count base observation at a position.
 
     Returns
     -------
@@ -178,43 +90,138 @@ def build_af_df(filepath,
 
     with pysam.AlignmentFile(filepath, "rb") as bamfile:
         
-        # The count_coverage method counts the occurances of each base at each position. It excludes reads based on the callback function
-        count_df = pd.DataFrame.from_dict({base:counts for base, counts in zip("ACGT", bamfile.count_coverage(contig = ref, read_callback=callback_function, quality_threshold=minimum_qual))})
-        
+        # The count_coverage method counts the occurances of each base at each position. 
+        # It excludes reads based on the callback function.
+        count_df = pd.DataFrame.from_dict({base:counts for base, counts in zip("ACGT",
+                                                                               bamfile.count_coverage(contig=ref,
+                                                                                                      read_callback=callback_function,
+                                                                                                      quality_threshold=minimum_qual))})
         # Add the depth at each position
         count_df['DP'] = count_df.sum(axis = 1)
-        
-        # Add the position 
+        # Add the position (1-indexed)
         count_df['POS'] = count_df.index + 1
-        
         # Add the reference allele
         count_df['REF'] = [base.upper() for base in list(SeqIO.parse(ref_path, "fasta"))[0].seq]
-        
         # convert counts to frequency 
         count_df.iloc[:,0:4] = count_df.iloc[:,0:4].div(count_df.DP, axis = 0)
-        
         # handle any NaNs created by dividing by 0 coverage
         count_df = count_df.fillna(0)
-        
         # Melt the data frame to a longer ('tidy') form
         count_df = pd.melt(count_df, 
                            id_vars=['POS', 'DP', 'REF'],
                            value_vars=[base for base in 'ATGC'],
                            value_name='AF',
                            var_name='ALT')
-        
-        # Filter out anything less than minimum allele freq
-        count_df = count_df[count_df['AF'] >= minimum_AF]
-        
+        # Remove anything with 0 coverage.
+        count_df = count_df[count_df['AF'] > 0]
         # TRUE/FALSE if it's a SNP
         count_df['SNP'] = np.where(count_df['ALT'] != count_df['REF'], True, False)
-        
-        # Is a base consensus or not.
+        # TRUE/FALSE if it's a consensus base.
         count_df['CONS'] = count_df['AF'].map(lambda x: x >= 0.5)
+        # Add the number of times a given allele is observed.
+        count_df['OBSV'] = count_df.DP * count_df.AF
+        
+        # Filter to only get SNPs
+        count_df = count_df.loc[count_df['SNP']]
+
+        # Iterate over the pileup to get info on read position, base quality, and strand bias
+        snp_set = {pair for pair in zip(count_df.POS, count_df.ALT)}
+        pos_set = {pos for pos, alt in snp_set}
+        # Dictionary to store information for each alternative allele
+        allele_dict = dict()
+        # Get the pileup column for a specific region
+        for pileupcolumn in bamfile.pileup(maxdepth = 0, stepper = 'nofilter', flag_filter = 0, min_base_quality = minimum_qual):
+            # Only iterate through reads that have alternative alleles
+            if pileupcolumn.reference_pos + 1 not in pos_set:
+                continue
+            # Iterate over every alignment in the pileup column. 
+            for pileupread in pileupcolumn.pileups:
+                # Check if the read is valid and can be parsed
+                if check_read(pileupread.alignment) and not pileupread.is_del and not pileupread.is_refskip:
+                    # Save the 1-indexed position
+                    pos = pileupcolumn.reference_pos + 1
+                    # Position in the read
+                    readpos = pileupread.query_position
+                    # Base at this position in the read
+                    base = pileupread.alignment.query_sequence[readpos]
+                    # Base quality
+                    qual = pileupread.alignment.query_qualities[readpos]
+                    # Orientation
+                    if pileupread.alignment.is_reverse:
+                        orientation = 1
+                    else:
+                        orientation = 0
+                    # Check if this read has a SNP  
+                    if (pos, base) in snp_set: 
+                        # Add this SNP to a dict to hold the read postions, qualities, and orientation
+                        if (pos, base) not in allele_dict.keys():
+                            allele_dict[(pos, base)] = ([readpos], [qual], [orientation])
+                        else: 
+                            allele_dict[(pos, base)][0].append(readpos)
+                            allele_dict[(pos, base)][1].append(qual)
+                            allele_dict[(pos, base)][2].append(orientation)
+        # List to hold data for readposition, quality, and orientation
+        filter_data = []
+        # Get the average or ratio of each value as list of tuples to add back to main dict.
+        for key, value in allele_dict.items(): 
+            pos = key[0]
+            alt = key[1]
+            mean_readpos = sum(int(x) for x in value[0])/len(value[0])
+            mean_qual = sum(int(x) for x in value[1])/len(value[1])
+            strand_ratio = sum(int(x) for x in value[2])/len(value[2])
+            filter_data.append((pos, alt, mean_readpos, mean_qual, strand_ratio))
+        # Save dict with pileup info
+        pileup_df = pd.DataFrame(filter_data, columns=('POS', 'ALT', 'MEAN_READPOS', 'MEAN_QUAL', 'STRAND_RATIO'))
+        
+        # Merge the pileup dict and the snp dict. 
+        return pd.merge(count_df, pileup_df,  how='left', left_on=['POS','ALT'], right_on = ['POS','ALT']).sort_values('POS').reset_index(drop=True)
+
     
-        # Sort by position and reset the index
-        return count_df.sort_values('POS').reset_index(drop=True)
-     
+def coverage_filter(snp_df, threshold = 10): 
+    """
+    Filter rows that don't meet the heuristic 
+    threshold of coverage specified by the user. 
+    
+    default is set to 10X the reciprocal of the 
+    allele frequency.
+    """
+    return snp_df.assign(COV_FILTER = lambda df: df.DP >= (1/df.AF * threshold))
+
+
+def observation_filter(snp_df, threshold = 2): 
+    """
+    Filter for the minimum number of reads where a SNP was observed.
+    
+    The default is 2 reads containing a SNP.
+    """
+    return snp_df.assign(OBSV_FILTER = lambda df: df.OBSV >= threshold)
+
+
+def read_position_filter(snp_df, avg_read_length = 71, percentile = 0.9):
+    """
+    Filter out SNPs that at the extreme start or end of reads. 
+    """
+    maxavg = avg_read_length*percentile
+    minavg = avg_read_length*(1-percentile)
+    return snp_df.assign(READPOS_FILTER = lambda df: (df.MEAN_READPOS >= minavg) & (df.MEAN_READPOS <= maxavg))
+
+
+def strand_bias_filter(snp_df, threshold = 0.9):
+    """
+    Filter out SNPs with a strand bias
+    """
+    return snp_df.assign(STRANDBIAS_FILTER = lambda df: (df.STRAND_RATIO >= (1-threshold)) & (df.STRAND_RATIO <= threshold))
+
+
+def mask(snp_df, mask = [x for x in range(29860, 29904)]):
+    """
+    Define a mask of position to exclude in the analysis. 
+    
+    These could be low complexity, close to the start or 
+    end of the genome, etc.. 
+    """
+    return snp_df.loc[~snp_df.POS.isin(mask)]
+
 
 def main():
     """Main function to call pysam pileup scipt.
@@ -231,20 +238,35 @@ def main():
     # Get the sample name, i.e. accession, from the path.
     accession = os.path.basename(inputpath).split(".")[0]
 
-    # Build the count df
-    # TODO: Currently hardcoded for COVID Wuhan-1 reference build.
-    count_df = build_af_df(inputpath, 
+    # Build the snp df
+    snp_df = identify_snps(inputpath, 
                 callback_function=check_read, 
                 ref = "NC_045512.2", 
                 ref_path = str(snakemake.input.genome), 
-                minimum_AF = 0.01, 
                 minimum_qual = int(snakemake.params.score))
 
     # Add accession and day to data frame
-    count_df.insert(0, 'ACCESSION', accession)
+    snp_df.insert(0, 'ACCESSION', accession)
+
+    # Filter based on snakemake params
+    strand_bias_threshold = 0.9
+    read_position_threshold = 0.9
+    avg_read_length = 71
+    observation_threshold = 2
+    coverage_threshold = 10
+
+    snp_df = coverage_filter(snp_df, threshold = coverage_threshold)
+
+    snp_df = observation_filter(snp_df, threshold = observation_threshold)
+
+    snp_df = read_position_filter(snp_df, avg_read_length = avg_read_length, percentile = read_position_threshold)
+
+    snp_df = strand_bias_filter(snp_df, threshold = strand_bias_threshold)
+
+    snp_df = mask(snp_df)
 
     # Exporting to csv for final analysis in `R`
-    count_df.to_csv(outpath, index=False)
+    snp_df.to_csv(outpath, index=False)
 
 
 if __name__ == '__main__':
