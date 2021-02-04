@@ -34,6 +34,16 @@ invisible(lapply(c(packages), library, character.only = TRUE))
 
 ```{r Paths to data, echo = FALSE}
 
-
+a = "../../results/coverage/coverage.stats"
+b = "../../results/coverage/merged.average.depth"
+c = "../../results/coverage/merged.bedgraph"
+d = "../../results/coverage/merged.depth"
 
 ```
+
+```{r Format data, include=FALSE, warning=FALSE, message=FALSE}
+
+read_tsv(b) %>%  View()
+
+```
+
