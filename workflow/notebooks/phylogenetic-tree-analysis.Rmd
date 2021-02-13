@@ -20,7 +20,7 @@ knitr::opts_chunk$set(echo = FALSE)
 ## ==== Install Required Packages ==== ##
 
 ## List of all packages needed -- non-BioManager installed
-packages = c("ggtree")
+packages = c("ggtree", "tidyverse")
 ## Check that packages are installed, if not, install them
 installed_packages <- packages %in% rownames(installed.packages())
 if (any(installed_packages == FALSE)) {
@@ -37,16 +37,37 @@ invisible(lapply(c(packages), library, character.only = TRUE))
 
 # Phylogenetic tree from iQtree
 tree.data = "../../results/consensus/merged.consenus.fa.treefile"
+# Edit distance
+editdistance.data = "../../config/edit_distance.csv"
 
 ```
 
 For reference, the longest branch is only like 11 substitutions in the 30,000 base genome. 
 
-```{r Phylogeny, message=FALSE, warning=FALSE, fig.width=10, fig.height=5, fig.align='center'}
+```{r Phylogeny, message=FALSE, warning=FALSE, fig.width=12, fig.height=11, fig.align='center'}
 
 tree = read.tree(tree.data)
-ggtree(tree, layout='rectangular') +
-  geom_tiplab(color='firebrick')
+ggtree(tree) + 
+  geom_tiplab(color='firebrick', size = 10) 
+
+```
+
+```{r Distance Heatmap, message = FALSE, warning = FALSE, fig.width=5, fig.height=5, fig.align='center'}
+
+edit.distance.df = read_csv(editdistance.data) %>% 
+  mutate(Sample_1 = paste0("Patient-", Sample_1)) %>% 
+  mutate(Sample_2 = paste0("Patient-", Sample_2))
+
+ggplot(edit.distance.df, aes(Sample_1, Sample_2)) +
+    geom_tile(aes(fill = Edit_Distance)) + 
+    geom_text(aes(label = round(Edit_Distance, 1)), size = 6) +
+    scale_fill_gradient(low = "white", high = "red") +
+    xlab("") +
+    ylab("") +
+    theme_minimal(22) +
+    theme(legend.position="none") +
+    theme(axis.text.x=element_text(angle=90, hjust=1)) 
+    
 
 ```
 

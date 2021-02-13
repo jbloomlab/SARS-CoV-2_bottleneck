@@ -21,7 +21,7 @@ knitr::opts_chunk$set(echo = FALSE)
 ## ==== Install Required Packages ==== ##
 
 ## List of all packages needed -- non-BioManager installed
-packages = c("tidyverse", "ggrepel", "plotly")
+packages = c("tidyverse")
 ## Check that packages are installed, if not, install them
 installed_packages <- packages %in% rownames(installed.packages())
 if (any(installed_packages == FALSE)) {
@@ -31,3 +31,147 @@ if (any(installed_packages == FALSE)) {
 invisible(lapply(c(packages), library, character.only = TRUE))
 
 ```
+
+```{r Filepaths, include=FALSE}
+
+## ==== File paths input data ==== ##
+
+# Data from pysam/python script. It contains the % of each nucleotide
+# at every covered position in the genome. This is a huge file.
+pysam.data = "../../results/pileup/pysam-variants.csv"
+# Data from lofreq
+variant.data = "../../results/variants/variants.csv"
+# Samtools average depth
+average.depth.data = "../../results/coverage/merged.average.depth" 
+
+```
+
+```{r Format data, include=FALSE, warning=FALSE, message=FALSE}
+
+# Import the data splitting the accession ID into the Accession and the Replicate
+pysam.df = read_csv(pysam.data) %>% 
+  separate(ACCESSION, into = c("ACCESSION", "REPLICATE"), sep = "_") %>% 
+  mutate(REPLICATE = as.factor(REPLICATE))
+
+# Get only the consensus alleles
+pysam.consensus.df = pysam.df %>% 
+  filter(CONS == TRUE)
+
+# Get only the SNPs
+pysam.snp.df = pysam.df %>% 
+  filter(SNP == TRUE) 
+
+# Get the prevalence of SNPs between replicates by filtering 
+# and joining by the samples, position in the genome, reference
+# allele (this is redundant), and the alternative allele (SNP).
+pysam.combined.snps.df = full_join(
+  filter(pysam.snp.df, REPLICATE == "1"),
+  filter(pysam.snp.df, REPLICATE == "2"), 
+  by = c("ACCESSION", "POS", "REF", "ALT"),
+  suffix = c(".one", ".two")
+  ) %>% 
+  select(!c("REPLICATE.one", "REPLICATE.two", "SNP.one", "SNP.two", "CONS.one", "CONS.two")) %>% 
+  mutate_each(list( ~ replace(., which(is.na(.)), 0)))
+
+# Varinat data from lofreq and varscan
+variant.df = read_csv(variant.data) %>% 
+  filter(Library == 1) %>% 
+  filter(Caller == "lofreq") %>% 
+  rename(ACCESSION = "spID", REPLICATE = "Replicate") %>% 
+  select(ACCESSION, REPLICATE, POS, DP, REF, ALT, AF) %>% 
+  mutate(SNP = TRUE, CONS = ifelse(AF >= 0.5, TRUE, FALSE))
+
+variant.combined.snps.df = full_join(
+  filter(variant.df, REPLICATE == "1"),
+  filter(variant.df, REPLICATE == "2"), 
+  by = c("ACCESSION", "POS", "REF", "ALT"),
+  suffix = c(".one", ".two")
+  ) %>% 
+  select(!c("REPLICATE.one", "REPLICATE.two", "SNP.one", "SNP.two", "CONS.one", "CONS.two")) %>% 
+  mutate_each(list( ~ replace(., which(is.na(.)), 0)))
+
+
+# Low quality samples 
+average.depth.df = read.table(average.depth.data, header = T) %>% 
+  separate(Accession, into = c("Accession", "Replicate")) %>% 
+  mutate(Run = paste0(Accession, Replicate))
+
+low.coverage.samples = average.depth.df %>% filter(Percent < 80) %>% pull(Accession)
+low.coverage.runs = average.depth.df %>% filter(Percent < 80) %>% pull(Run)
+
+```
+
+How to correctly combine the two samples to analyze mutational effects? 
+
+```{r}
+
+# Samples to analyze
+final.samples.df = pysam.combined.snps.df %>% 
+  mutate(Coverage = ifelse(ACCESSION %in% low.coverage.samples, "Low", "High")) %>% 
+  filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
+  filter(DP.one >= 100 & DP.two >= 100) %>% 
+  filter(Coverage == "High") %>% 
+  filter(!(ACCESSION %in% c("10089", "10117"))) %>% 
+  mutate(AF = (AF.one + AF.two)/2) %>% 
+  select(ACCESSION, POS, REF, ALT, AF, AA_CHANGE = "AA_CHANGE.one", EFFECT = "EFFECT.one", GENE = "GENE.one") %>% 
+  rename(ALT = "REF", REF = "ALT") %>% 
+  mutate(AF = ifelse(AF >= 0.5, (1 - AF), AF)) %>% 
+  filter(AF >= 0.02)
+
+```
+
+```{r}
+
+final.samples.df %>% 
+  group_by(ACCESSION) %>% 
+  count() %>% 
+  pull(n) %>% 
+  mean(.)
+
+```
+
+There is a mean of ~ 4 minor variants per sample. 
+
+
+```{r}
+
+final.samples.df %>% 
+  ggplot(aes(x = AF)) + 
+    geom_histogram(bins = 20) + 
+    ylab("Count") + 
+    ggtitle("MAF Histogram") + 
+    theme_bw(18) +
+    theme(plot.title = element_text(hjust = 0.5)) 
+  
+```
+
+```{r}
+
+shared.snps = final.samples.df %>% 
+  group_by(POS, REF, ALT) %>% 
+  count() %>% 
+  arrange(-n) %>% 
+  filter(n > 1) %>% 
+  mutate(SNP = paste0(REF, POS, ALT)) %>% 
+  pull(SNP)
+
+
+final.samples.df = final.samples.df %>% 
+  mutate(SNP = paste0(REF, POS, ALT)) 
+
+final.samples.df[which(final.samples.df$SNP %in% shared.snps), ] %>%
+  group_by(ACCESSION) %>% 
+  count() %>% 
+  filter(n > 2) %>% 
+  pull(ACCESSION) %>%
+  unique(.)
+```
+
+
+
+
+
+
+
+
+

@@ -36,15 +36,104 @@ invisible(lapply(c(packages), library, character.only = TRUE))
 
 stats.data = "../../results/coverage/coverage.stats" # Samtools stats
 average.depth.data = "../../results/coverage/merged.average.depth" # Samtools average depth
-percent.coverage.data = "../../results/coverage/merged.depth" # Samtools depth 
+depth.of.coverage.data = "../../results/coverage/merged.depth" # Samtools depth 
 
 ```
 
 ```{r Format data, include=FALSE, warning=FALSE, message=FALSE}
 
-stats.df = read_tsv(stats.data)
-average.depth.df = read.table(average.depth.data, header = T)
-percent.coverage.df = read.table(percent.coverage.data, header = T)
+stats.df = read_tsv(stats.data) %>% 
+  separate(filename, into = c("X1", "X2", "X3", "Run", "X4"), sep = "/") %>% 
+  select(!starts_with('X')) %>% 
+  separate(Run, into = c("Accession", "Replicate"), remove = F)
+
+average.depth.df = read.table(average.depth.data, header = T) %>% 
+  separate(Accession, into = c("Accession", "Replicate")) %>% 
+  mutate(Run = paste0(Accession, Replicate))
+
+depth.of.coverage.df = read.table(depth.of.coverage.data, header = T) %>% 
+  separate(Accession, into = c("Accession", "Replicate")) %>% 
+  mutate(Run = paste0(Accession, Replicate))
+
+
+# Colors 
+experiment.colors = c("#000000", "#7a7a7a")
+```
+
+```{r Percent Covered, message=FALSE, warning=FALSE, fig.width=8, fig.height=4, fig.align='center'}
+
+# What is the percent of the genome covered by more than 200 reads?
+average.depth.df %>% 
+  ggplot(aes(x = Accession, y = Percent, fill = Replicate)) + 
+    geom_bar(stat = "identity", position = position_dodge()) + 
+    scale_fill_manual(values = experiment.colors) +
+    xlab("Sample") +
+    ylab("Percent > 200X") +
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=18)) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+    theme(legend.position="none") +
+    theme(axis.text.x=element_text(angle=45, hjust=1))
+
+# Low coverage samples
+low.coverage.samples = average.depth.df %>% filter(Percent < 80) %>% pull(Accession)
+low.coverage.runs = average.depth.df %>% filter(Percent < 80) %>% pull(Run)
+
+print(paste0("There are ", length(low.coverage.samples), " low coverage samples: "))
+print(low.coverage.samples)
+
+```
+
+Coverage pattern is pretty erratic since this isn't amplicon sequencing. Red samples are colored as those that don't have more than 80% of the genome covered by more than 200 reads. 
+
+```{r Coverage Pattern, message=FALSE, warning=FALSE, fig.width=8, fig.height=4, fig.align='center'}
+
+# Excluding the last 100 or so nucleotides which is a poly-A run. 
+depth.of.coverage.df %>% 
+  mutate(`Low Coverage` = ifelse(Run %in% low.coverage.runs, "Yes", "No")) %>% 
+  filter(Start < 29850) %>% 
+  ggplot(aes(x = (Start+Stop)/2, y = Depth, group = Run, col = `Low Coverage`))+
+    geom_line() + 
+    scale_color_manual(values = c("#080000","#b80000")) +
+    xlab("Position") +
+    ylab("Depth") +
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=18)) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+    theme(legend.position="none") 
+    
+
+```
+
+
+```{r Coverage Pattern Facet, message=FALSE, warning=FALSE, fig.width=15, fig.height=15, fig.align='center'}
+
+# Excluding the last 100 or so nucleotides which is a poly-A run. 
+depth.of.coverage.df %>% 
+  mutate(`Low Coverage` = ifelse(Run %in% low.coverage.runs, "Yes", "No")) %>% 
+  filter(Start < 29850) %>% 
+  mutate(Depth = ifelse(Depth > 500, 500, Depth)) %>% 
+  ggplot(aes(x = (Start+Stop)/2, y = Depth, group = Run, col = `Low Coverage`))+
+    geom_line() + 
+    geom_hline(yintercept = 200, col = "blue", linetype = 2) + 
+    facet_wrap(~Accession) + 
+    scale_color_manual(values = c("#080000","#b80000")) +
+    xlab("Position") +
+    ylab("Depth") +
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=18)) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+    theme(legend.position="none") 
+    
 
 ```
 

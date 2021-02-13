@@ -41,6 +41,8 @@ invisible(lapply(c(packages), library, character.only = TRUE))
 pysam.data = "../../results/pileup/pysam-variants.csv"
 # Data from lofreq
 variant.data = "../../results/variants/variants.csv"
+# Samtools average depth
+average.depth.data = "../../results/coverage/merged.average.depth" 
 
 ```
 
@@ -88,83 +90,64 @@ variant.combined.snps.df = full_join(
   select(!c("REPLICATE.one", "REPLICATE.two", "SNP.one", "SNP.two", "CONS.one", "CONS.two")) %>% 
   mutate_each(list( ~ replace(., which(is.na(.)), 0)))
 
+
+# Low quality samples 
+average.depth.df = read.table(average.depth.data, header = T) %>% 
+  separate(Accession, into = c("Accession", "Replicate")) %>% 
+  mutate(Run = paste0(Accession, Replicate))
+
+low.coverage.samples = average.depth.df %>% filter(Percent < 80) %>% pull(Accession)
+low.coverage.runs = average.depth.df %>% filter(Percent < 80) %>% pull(Run)
+
 ```
 
 ## Concordance
 
-Below is a plot of the concordance of allele frequency between sequencing replicates. This doesn't include any filters for depth of sequencing. So the allele frequency for one replicate could have been sampled from 10,000 reads while the other only 10.  
+Below is a plot of the concordance of allele frequency between the sequencing replicates of all libraries. This doesn't include any filters for depth of sequencing. I colored any runs which had a replicate less than 80% covered by more than 200 reads red. This doesn't account for all of the discrepencies in allele frequency.   
 
-```{r Concordance Plot, warning=FALSE, message = FALSE, fig.width=15, fig.height=15, fig.align='center'}
+```{r Concordance Plot, warning=FALSE, message = FALSE, fig.width=7, fig.height=5, fig.align='center'}
 
 pysam.combined.snps.df %>% 
-  ggplot(aes(x = AF.one, y = AF.two)) + 
-    facet_wrap(~ ACCESSION)+
-    geom_point(size = 3) +
-    geom_smooth(method='lm', se = F, col = "blue") + 
-    stat_cor(method="pearson") +
+  mutate(Coverage = ifelse(ACCESSION %in% low.coverage.samples, "Low", "High")) %>% 
+  ggplot(aes(x = AF.one, y = AF.two, col = Coverage)) + 
+    geom_point(size = 1.5, alpha = .75) +
+    geom_abline(intercept=0, col = "blue") + 
+    scale_color_manual(values = c("#080000","#b80000")) +
+    ggtitle("Concordance - All Samples") + 
     xlab("Allele Frequency Replicate One") +
     ylab("Allele Frequency Replicate Two") +
     theme_classic() +
     theme(text=element_text(size=18,  family="Helvetica")) +
     theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
-    theme(panel.background = element_rect(fill = NA, color = "black"))
+    theme(panel.background = element_rect(fill = NA, color = "black")) +
+    theme(plot.title = element_text(hjust = 0.5)) 
 
 
 ```
 
-Let's see what this looks like when you take the log of the allele frequency. Again, the plot below has no filters for depth, minimum allele frequency, or anything else. 
 
-```{r Log Concordance Plot, warning=FALSE, message=FALSE, fig.width=15, fig.height=15, fig.align='center'}
+```{r Concordance Plot, warning=FALSE, message = FALSE, fig.width=15, fig.height=15, fig.align='center'}
 
 pysam.combined.snps.df %>% 
-  ggplot(aes(x = log10(AF.one), y = log10(AF.two))) + 
-    facet_wrap(~ ACCESSION)+
-    geom_point(size = 3) +
-    geom_smooth(method='lm', se = F, col = "blue") + 
-    stat_cor(method="pearson") +
-    xlab("Allele Frequency Replicate One (log10)") +
-    ylab("Allele Frequency Replicate Two (log10)") +
+  mutate(Coverage = ifelse(ACCESSION %in% low.coverage.samples, "Low", "High")) %>% 
+  filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
+  filter(DP.one >= 100 & DP.two >= 100) %>% 
+  filter(Coverage == "High") %>% 
+  ggplot(aes(x = AF.one, y = AF.two, col = Coverage)) + 
+    geom_point(size = 1.5, alpha = .75) +
+    geom_abline(intercept=0, col = "blue") + 
+    facet_wrap(~ACCESSION) + 
+    scale_color_manual(values = c("#080000","#b80000")) +
+    ggtitle("Concordance - All Samples") + 
+    xlab("Allele Frequency Replicate One") +
+    ylab("Allele Frequency Replicate Two") +
     theme_classic() +
     theme(text=element_text(size=18,  family="Helvetica")) +
     theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
-    theme(panel.background = element_rect(fill = NA, color = "black"))
+    theme(panel.background = element_rect(fill = NA, color = "black")) +
+    theme(plot.title = element_text(hjust = 0.5)) 
+
 
 ```
 
-There are clearly a lot of alleles that have counts in one replicate but are abscent from the other replicate. To refine this further I'll apply some heurisitc filter for what positions to include.
-
-```{r Filtered Log Concordance Plot, warning=FALSE, message=FALSE, fig.width=15, fig.height=15, fig.align='center'}
-
-pysam.combined.snps.df %>% 
-  filter(AF.one > .05 | AF.two > .05) %>% 
-  filter(DP.one > 100 & DP.two > 100) %>% 
-  ggplot(aes(x = (AF.one), y = (AF.two))) + 
-    facet_wrap(~ ACCESSION)+
-    geom_point(size = 3) +
-    geom_smooth(method='lm', se = F, col = "blue") + 
-    stat_cor(method="pearson") +
-    xlab("Allele Frequency Replicate One (log10)") +
-    ylab("Allele Frequency Replicate Two (log10)") +
-    theme_classic() +
-    theme(text=element_text(size=18,  family="Helvetica")) +
-    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
-    theme(panel.background = element_rect(fill = NA, color = "black"))
-
-```
-
-```{r Variant Log Concordance Plot, warning=FALSE, message=FALSE, fig.width=15, fig.height=15, fig.align='center'}
-variant.combined.snps.df %>% 
-  ggplot(aes(x = log10(AF.one), y = log10(AF.two))) + 
-    facet_wrap(~ ACCESSION)+
-    geom_point(size = 3) +
-    geom_smooth(method='lm', se = F, col = "blue") + 
-    stat_cor(method="pearson") +
-    xlab("Allele Frequency Replicate One (log10)") +
-    ylab("Allele Frequency Replicate Two (log10)") +
-    theme_classic() +
-    theme(text=element_text(size=18,  family="Helvetica")) +
-    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
-    theme(panel.background = element_rect(fill = NA, color = "black"))
-
-```
 

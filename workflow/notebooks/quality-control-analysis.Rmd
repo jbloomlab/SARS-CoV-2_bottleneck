@@ -71,6 +71,24 @@ metadata.df = full_join(boat.df, sample.df, by = "spID") %>%
 experiment.colors = c("#000000", "#7a7a7a")
 ```
 
+Out of all 39 genomes that were reconstucted for the phylogeny, how many did we include in the analysis? 
+
+```{r Samples included by Ct, echo = F, message = F, warning = F, fig.width=7, fig.height=3, fig.align='center'}
+
+metadata.df %>% 
+  ggplot(aes(x = reorder(spID, -CT), y = CT, col = Included)) + 
+    geom_hline(yintercept = 20, col = "black", linetype = 2, size = 1.5) + 
+    geom_point(size = 5) +
+    xlab("Sample") + 
+    ylab("Cycle Threshold (Ct)") + 
+    scale_color_manual(values = c("#DC3220","#005AB5")) + 
+    theme_classic(35) +
+    theme(axis.text.x=element_blank(), 
+          axis.ticks.x=element_blank(),
+          legend.position = "none") 
+
+```
+
 The following plot is the size of each library (how many mapped SARS-CoV-2 reads are there per patient per replicate) both before and after merging the separate sequencing attempts. The facet labled `1` shows each library from the initial round of sequencing. The facet labled `2` shows the extra sequencing we requested from Pavitra to even out the coverage between replicates. It appears the have made most samples more evenly covered, with the notable exception of patient `10027`.
 
 ```{r Run Size, echo = FALSE, message = FALSE, fig.width=15, fig.height=5, fig.align='center'}
