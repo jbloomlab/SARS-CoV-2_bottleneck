@@ -22,7 +22,7 @@ rule get_pileup:
 rule aggregate_pileup:
     """ Aggregate variants called with python and pysam.. 
     """
-    input: expand(join(config['pileup_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.pysam.pileup.csv"), accession=pd.read_csv(config['samples']['file'])['Run'], aligner=['BWA'])
+    input: expand(join(config['pileup_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.pysam.pileup.csv"), accession=samples, aligner=['BWA'])
     output: join(config['pileup_dir'], "pysam-variants.csv")
     run: aggregate_csv(input, output)
 

@@ -165,7 +165,7 @@ rule aggregate_variants:
     """
     This rule aggregates all of the variants. 
     """
-    input: expand([join(config['variant_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.{caller}.ann.csv")], accession=pd.read_csv(config['samples']['file'])['Run'], aligner=['BWA'], caller=['varscan', 'lofreq'])
+    input: expand([join(config['variant_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.{caller}.ann.csv")], accession=samples, aligner=['BWA'], caller=['varscan', 'lofreq'])
     output: join(config['variant_dir'], "variants.csv")
     run: aggregate_csv(input, output)
 
