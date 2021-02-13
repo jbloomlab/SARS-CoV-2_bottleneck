@@ -22,6 +22,7 @@ import numpy as np #arrays
 import os #interacting with files
 from Bio import SeqIO #reading fasta format
 import re #regular expressions
+import annotate_coding_changes as annotate
 
 ## === Functions === ##
 
@@ -264,6 +265,12 @@ def main():
     snp_df = strand_bias_filter(snp_df, threshold = strand_bias_threshold)
 
     snp_df = mask(snp_df)
+
+    # TODO: Annotate coding changes
+    # Load in the information from genbank
+    cds_dict, genome = annotate.parse_genbank(email = "wwh22@uw.edu", ref_id = "NC_045512.2")
+
+    snp_df[['CODON_POS', 'AA_CHANGE', 'EFFECT', 'GENE']] = snp_df.apply(lambda df: annotate.annotate_effect(cds_dict, genome, (df.POS, df.ALT)), axis=1, result_type='expand')
 
     # Exporting to csv for final analysis in `R`
     snp_df.to_csv(outpath, index=False)
