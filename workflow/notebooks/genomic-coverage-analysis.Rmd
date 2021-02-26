@@ -21,7 +21,7 @@ knitr::opts_chunk$set(echo = FALSE)
 ## ==== Install Required Packages ==== ##
 
 ## List of all packages needed -- non-BioManager installed
-packages = c("tidyverse")
+packages = c("tidyverse", "scales")
 ## Check that packages are installed, if not, install them
 installed_packages <- packages %in% rownames(installed.packages())
 if (any(installed_packages == FALSE)) {
@@ -37,7 +37,7 @@ invisible(lapply(c(packages), library, character.only = TRUE))
 stats.data = "../../results/coverage/coverage.stats" # Samtools stats
 average.depth.data = "../../results/coverage/merged.average.depth" # Samtools average depth
 depth.of.coverage.data = "../../results/coverage/merged.depth" # Samtools depth 
-
+annotation.data = "../../config/sars_cov_2_annot.csv" # Annotation of SARS-CoV-2 gene positions
 ```
 
 ```{r Format data, include=FALSE, warning=FALSE, message=FALSE}
@@ -60,22 +60,22 @@ depth.of.coverage.df = read.table(depth.of.coverage.data, header = T) %>%
 experiment.colors = c("#000000", "#7a7a7a")
 ```
 
-```{r Percent Covered, message=FALSE, warning=FALSE, fig.width=8, fig.height=4, fig.align='center'}
+```{r Percent Covered, message=FALSE, warning=FALSE, fig.width=11, fig.height=5, fig.align='center'}
 
 # What is the percent of the genome covered by more than 200 reads?
 average.depth.df %>% 
-  ggplot(aes(x = Accession, y = Percent, fill = Replicate)) + 
+  ggplot(aes(x = reorder(Accession, -Percent), y = Percent/100, fill = Replicate)) + 
     geom_bar(stat = "identity", position = position_dodge()) + 
-    scale_fill_manual(values = experiment.colors) +
+    scale_fill_manual(values = experiment.colors, name = "Replicate") +
+    scale_y_continuous(labels = percent) + 
     xlab("Sample") +
-    ylab("Percent > 200X") +
+    ylab("More than 200X coverage") +
     theme_classic() +
     theme(legend.position="bottom", legend.box = "horizontal") +
     theme(legend.box.background = element_rect(colour = "black")) +
     theme(text=element_text(size=18)) +
     theme(plot.title = element_text(hjust = 0.5)) +
     theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
-    theme(legend.position="none") +
     theme(axis.text.x=element_text(angle=45, hjust=1))
 
 # Low coverage samples
@@ -89,30 +89,94 @@ print(low.coverage.samples)
 
 Coverage pattern is pretty erratic since this isn't amplicon sequencing. Red samples are colored as those that don't have more than 80% of the genome covered by more than 200 reads. 
 
-```{r Coverage Pattern, message=FALSE, warning=FALSE, fig.width=8, fig.height=4, fig.align='center'}
+```{r Coverage Pattern, message=FALSE, warning=FALSE, fig.width=15, fig.height=6, fig.align='center'}
+
+# Read in the SARS-CoV-2 gene annotations
+annotation.df = read_csv(annotation.data)
+
+# Generate positions for lables 
+label = annotation.df %>% 
+  mutate(POS = (start+end)/2) %>% 
+  mutate(Depth = -(1200/2)) %>% 
+  select(gene, POS, Depth) 
+
+# Get the interval positions for these genes 
+ORF1ab = annotation.df %>% dplyr::filter(gene == "Orf1ab")
+Spike = annotation.df %>% dplyr::filter(gene == "Spike")
+ORF3a = annotation.df %>% dplyr::filter(gene == "ORF3a")
+Envelope = annotation.df %>% dplyr::filter(gene == "Envelope")
+Membrane = annotation.df %>% dplyr::filter(gene == "Membrane")
+ORF6 = annotation.df %>% dplyr::filter(gene == "ORF6")
+ORF7a = annotation.df %>% dplyr::filter(gene == "ORF7a")
+ORF8 = annotation.df %>% dplyr::filter(gene == "ORF8")
+Nucleocapsid = annotation.df %>% dplyr::filter(gene == "Nucleocapsid")
+ORF10 = annotation.df %>% dplyr::filter(gene == "ORF10")
+
 
 # Excluding the last 100 or so nucleotides which is a poly-A run. 
 depth.of.coverage.df %>% 
-  mutate(`Low Coverage` = ifelse(Run %in% low.coverage.runs, "Yes", "No")) %>% 
+  mutate(`Low Coverage` = ifelse(Run %in% low.coverage.runs, "Yes", "No"),
+         POS =(Start+Stop)/2) %>% 
   filter(Start < 29850) %>% 
-  ggplot(aes(x = (Start+Stop)/2, y = Depth, group = Run, col = `Low Coverage`))+
+  ggplot(aes(x = POS, y = Depth, group = Run, col = `Low Coverage`))+
     geom_line() + 
     scale_color_manual(values = c("#080000","#b80000")) +
     xlab("Position") +
     ylab("Depth") +
+    scale_x_continuous(breaks=c(0,5000,10000,15000,20000,25000,30000)) +
+    annotate("rect", xmin = 0, xmax = ORF1ab[[2]]-1, ymin = -1200, ymax = -.01 ,
+             alpha = .2, fill = "grey", col = "black", size = .1) +
+    annotate("rect", xmin = ORF1ab[[2]], xmax = ORF1ab[[3]], ymin = -1200, ymax = -.01 ,
+               alpha = .2, fill = "dodgerblue2", col = "black", size = .1) +
+    annotate(geom = "text", x = label[[2]][1], y = label[[3]][1], label = label[[1]][1], family = "mono") +
+    annotate("rect", xmin = Spike[[2]], xmax = Spike[[3]], ymin =  -1200, ymax = -.01 ,
+             alpha = .2, fill = "yellow3", col = "black", size = .1) +
+    annotate(geom = "text", x = label[[2]][2], y = label[[3]][2], label = label[[1]][2], family = "mono") +
+    annotate("rect", xmin = ORF3a[[2]], xmax = ORF3a[[3]], ymin =  -1200, ymax = -.01 ,
+             alpha = .2, fill = "#FF7F00", col = "black", size = .1) +
+    annotate(geom = "text", x = label[[2]][3], y = label[[3]][3], label = "3a", family = "mono") +
+    annotate("rect", xmin = Envelope[[2]], xmax = Envelope[[3]], ymin =  -1200, ymax = -.01 ,
+             alpha = .2, fill =  "#6A3D9A", col = "black", size = .1) +
+    annotate(geom = "text", x = label[[2]][4], y = label[[3]][4], label = "E", family = "mono") +
+    annotate("rect", xmin = Membrane[[2]], xmax = Membrane[[3]], ymin =  -1200, ymax = -.01 ,
+             alpha = .2, fill =  "green4", col = "black", size = .1) +
+    annotate(geom = "text", x = label[[2]][5], y = label[[3]][5], label = "M", family = "mono") +
+    annotate("rect", xmin = ORF6[[2]], xmax = ORF6[[3]], ymin = -1200, ymax = -.01 ,
+             alpha = .2, fill = "#E31A1C", col = "black", size = .1) +
+    annotate(geom = "text", x = label[[2]][6], y = label[[3]][6], label = "6", family = "mono") +
+    annotate("rect", xmin = ORF7a[[2]], xmax = ORF7a[[3]], ymin =  -1200, ymax = -.01 ,
+             alpha = .2, fill = "#FB9A99", col = "black", size = .1) +
+    #annotate(geom = "text", x = label[[2]][7], y = label[[3]][7], label = "7a", family = "mono") +
+    annotate("rect", xmin = ORF8[[2]], xmax = ORF8[[3]], ymin =  -1200, ymax = -.01 ,
+             alpha = .2, fill = "orchid1", col = "black", size = .1) +
+    annotate(geom = "text", x = label[[2]][8], y = label[[3]][8], label = "8", family = "mono") +
+    annotate("rect", xmin = Nucleocapsid[[2]], xmax = Nucleocapsid[[3]], ymin =  -1200, ymax = -.01 ,
+             alpha = .2, fill = "maroon", col = "black", size = .1) +
+    annotate(geom = "text", x = label[[2]][9], y = label[[3]][9], label = "N", family = "mono") +
+    annotate("rect", xmin = ORF10[[2]], xmax = ORF10[[3]], ymin =  -1200, ymax = -.01 ,
+             alpha = .2, fill =  "skyblue2", col = "black", size = .1) +
+    annotate("rect", xmin = ORF10[[3]]+1, xmax = 29903, ymin = -1200, ymax = -.01 ,
+             alpha = .2, fill = "grey", col = "black", size = .1) +
+    annotate(geom = "text", x = -200, y = label[[3]][1], label = "5'", family = "mono") +
+    annotate(geom = "text", x = 30200, y = label[[3]][1], label = "3'", family = "mono") +
+    #annotate(geom = "text", x = label[[2]][10], y = label[[3]][10], label = "10", family = "mono") +
     theme_classic() +
     theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(aspect.ratio = .25)  +
     theme(legend.box.background = element_rect(colour = "black")) +
     theme(text=element_text(size=18)) +
     theme(plot.title = element_text(hjust = 0.5)) +
-    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
-    theme(legend.position="none") 
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed"),
+        strip.text.x = element_blank()) 
+
+
+
     
 
 ```
 
 
-```{r Coverage Pattern Facet, message=FALSE, warning=FALSE, fig.width=15, fig.height=15, fig.align='center'}
+```{r Coverage Pattern Facet, message=FALSE, warning=FALSE, fig.width=20, fig.height=10, fig.align='center'}
 
 # Excluding the last 100 or so nucleotides which is a poly-A run. 
 depth.of.coverage.df %>% 

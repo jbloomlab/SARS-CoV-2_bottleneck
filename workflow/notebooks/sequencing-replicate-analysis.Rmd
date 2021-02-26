@@ -113,7 +113,6 @@ pysam.combined.snps.df %>%
     geom_point(size = 1.5, alpha = .75) +
     geom_abline(intercept=0, col = "blue") + 
     scale_color_manual(values = c("#080000","#b80000")) +
-    ggtitle("Concordance - All Samples") + 
     xlab("Allele Frequency Replicate One") +
     ylab("Allele Frequency Replicate Two") +
     theme_classic() +
@@ -126,19 +125,66 @@ pysam.combined.snps.df %>%
 ```
 
 
-```{r Concordance Plot, warning=FALSE, message = FALSE, fig.width=15, fig.height=15, fig.align='center'}
+```{r Common-sense filters, warning=FALSE, message = FALSE, fig.width=7, fig.height=5, fig.align='center'}
 
-pysam.combined.snps.df %>% 
-  mutate(Coverage = ifelse(ACCESSION %in% low.coverage.samples, "Low", "High")) %>% 
-  filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
-  filter(DP.one >= 100 & DP.two >= 100) %>% 
+excluded.variants.df = pysam.combined.snps.df %>% 
+  mutate(Coverage = ifelse(ACCESSION %in% low.coverage.samples, "Low", "High")) %>%
+  filter(Coverage == "Low") %>% 
+  filter(!(AF.one < 0.02 & AF.two < 0.02)) %>% 
+  filter(!(DP.one < 100 & DP.two < 100))
+ 
+  
+included.variants.df = pysam.combined.snps.df %>% 
+  mutate(Coverage = ifelse(ACCESSION %in% low.coverage.samples, "Low", "High")) %>%
   filter(Coverage == "High") %>% 
-  ggplot(aes(x = AF.one, y = AF.two, col = Coverage)) + 
-    geom_point(size = 1.5, alpha = .75) +
+  filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
+  filter(DP.one >= 100 & DP.two >= 100)
+ 
+ 
+p1 = included.variants.df %>% 
+  ggplot(aes(x = AF.one, y = AF.two)) + 
+    geom_point(data = excluded.variants.df, aes(x = AF.one, y = AF.two), size = .5, col = "#b80000", alpha = 0.5) +
+    geom_point(size = 1.5) +
+    geom_hline(yintercept = 0.02, col = "blue", linetype = 2) + 
+    geom_vline(xintercept = 0.02, col = "blue", linetype = 2) + 
+    geom_abline(intercept=0, col = "blue") + 
+    scale_color_manual(values = c("#080000","#b80000")) +
+    xlab("Allele Frequency Replicate One") +
+    ylab("Allele Frequency Replicate Two") +
+    theme_classic() +
+    theme(text=element_text(size=18,  family="Helvetica")) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+    theme(panel.background = element_rect(fill = NA, color = "black")) +
+    theme(plot.title = element_text(hjust = 0.5)) 
+
+p2 = included.variants.df %>% 
+  ggplot(aes(x = AF.one, y = AF.two)) + 
+    geom_point(data = excluded.variants.df, aes(x = AF.one, y = AF.two), size = .5, col = "#b80000", alpha = 0.5) +
+    geom_point(size = 1.5) +
+    geom_hline(yintercept = 0.02, col = "blue", linetype = 2) + 
+    geom_vline(xintercept = 0.02, col = "blue", linetype = 2) + 
+    geom_abline(intercept=0, col = "blue") + 
+    scale_x_continuous(limits = c(0, .15)) + 
+    scale_y_continuous(limits = c(0, .15)) + 
+    scale_color_manual(values = c("#080000","#b80000")) +
+    xlab("") +
+    ylab("") +
+    theme_minimal()
+
+p1 + 
+  annotation_custom(ggplotGrob(p2), xmin = .5, xmax = 1, ymin = 0, ymax = .4)
+```
+
+
+
+```{r Concordance Plot, warning=FALSE, message = FALSE, fig.width=15, fig.height=10, fig.align='center'}
+
+included.variants.df %>% 
+  ggplot(aes(x = AF.one, y = AF.two)) + 
+    geom_point(size = 2, alpha = .75) +
     geom_abline(intercept=0, col = "blue") + 
     facet_wrap(~ACCESSION) + 
-    scale_color_manual(values = c("#080000","#b80000")) +
-    ggtitle("Concordance - All Samples") + 
+    scale_x_continuous(breaks = c(0.25, 0.5, 0.75)) +
     xlab("Allele Frequency Replicate One") +
     ylab("Allele Frequency Replicate Two") +
     theme_classic() +

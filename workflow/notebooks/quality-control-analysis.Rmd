@@ -21,7 +21,7 @@ knitr::opts_chunk$set(echo = FALSE)
 ## ==== Install Required Packages ==== ##
 
 ## List of all packages needed -- non-BioManager installed
-packages = c("tidyverse")
+packages = c("tidyverse", "scales")
 ## Check that packages are installed, if not, install them
 installed_packages <- packages %in% rownames(installed.packages())
 if (any(installed_packages == FALSE)) {
@@ -73,33 +73,61 @@ experiment.colors = c("#000000", "#7a7a7a")
 
 Out of all 39 genomes that were reconstucted for the phylogeny, how many did we include in the analysis? 
 
-```{r Samples included by Ct, echo = F, message = F, warning = F, fig.width=7, fig.height=3, fig.align='center'}
+```{r Samples included by Ct, echo = F, message = F, warning = F, fig.width=11, fig.height=5, fig.align='center'}
 
 metadata.df %>% 
   ggplot(aes(x = reorder(spID, -CT), y = CT, col = Included)) + 
     geom_hline(yintercept = 20, col = "black", linetype = 2, size = 1.5) + 
-    geom_point(size = 5) +
+    geom_point(size = 4) +
     xlab("Sample") + 
     ylab("Cycle Threshold (Ct)") + 
-    scale_color_manual(values = c("#DC3220","#005AB5")) + 
-    theme_classic(35) +
+    scale_color_manual(values = c("#005AB5","#DC3220")) + 
+    theme_classic(30) +
     theme(axis.text.x=element_blank(), 
           axis.ticks.x=element_blank(),
           legend.position = "none") 
 
 ```
 
+Donut plot of samples
+
+```{r Donut, echo = F, message = F, warning = F, fig.width=6, fig.height=6, fig.align='center'}
+
+donut.df = data.frame(Category = c("Not Tested", "Negative", "Postive + Low Quality", "Positve + Deep-Sequenced"),
+                      Count = c(4, 20, 59, 39)) %>% 
+  mutate(Freq = Count/sum(Count))
+
+# Compute the cumulative percentages (top of each rectangle)
+donut.df$ymax <- cumsum(donut.df$Freq)
+
+# Compute the bottom of each rectangle
+donut.df$ymin <- c(0, head(donut.df$ymax, n=-1))
+
+# Compute label position
+donut.df$labelPosition <- (donut.df$ymax + donut.df$ymin) / 2
+
+ggplot(donut.df, aes(ymax=ymax, ymin=ymin, xmax=4, xmin=3, fill=Category)) +
+  geom_rect() +
+  geom_label(x=3.5, aes(y=labelPosition, label=Count), size=8) +
+  scale_fill_brewer(palette=9) +
+  coord_polar(theta="y") +
+  xlim(c(2, 4)) +
+  theme_void(35) +
+  theme(legend.position = "none")
+
+```
+
 The following plot is the size of each library (how many mapped SARS-CoV-2 reads are there per patient per replicate) both before and after merging the separate sequencing attempts. The facet labled `1` shows each library from the initial round of sequencing. The facet labled `2` shows the extra sequencing we requested from Pavitra to even out the coverage between replicates. It appears the have made most samples more evenly covered, with the notable exception of patient `10027`.
 
-```{r Run Size, echo = FALSE, message = FALSE, fig.width=15, fig.height=5, fig.align='center'}
+```{r Run Size, echo = FALSE, message = FALSE, fig.width=11, fig.height=5, fig.align='center'}
 
 # The number of mapped reads for each sample. (1) correspond to the initial sequencing. (2) corresponds to the supplementary sequencing.
 # `merged` corresponds to the combindation of the two libraries. 
 qc.df %>% 
-  ggplot(aes(x = as.factor(sample), y = reads_mapped, fill = as.factor(replicate))) +
+  filter(library == "1") %>% 
+  ggplot(aes(x = reorder(as.factor(sample), -reads_mapped), y = reads_mapped, fill = as.factor(replicate))) +
     geom_bar(stat = "identity", position = position_dodge()) + 
-    facet_wrap(~library) +
-    scale_fill_manual(values = experiment.colors) +
+    scale_fill_manual(values = experiment.colors, name = "Replicate") +
     xlab("Sample") +
     ylab("Number of Mapped Reads") +
     theme_classic() +
@@ -108,20 +136,21 @@ qc.df %>%
     theme(text=element_text(size=18)) +
     theme(plot.title = element_text(hjust = 0.5)) +
     theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
-    theme(legend.position="none") +
     theme(axis.text.x=element_text(angle=45, hjust=1))
 
 ```
 
 Below is the same plot as above, but only showing the library size between replicates after combining the extra sequencing. Library size is more comparable between replicates now. However, it's certainly not perfect. 
 
-```{r Combined Run Size, echo = FALSE, message = FALSE, fig.width=7, fig.height=3, fig.align='center'}
+```{r Run Size, echo = FALSE, message = FALSE, fig.width=11, fig.height=5, fig.align='center'}
 
-# Just the `merged` samples for a better look.
-qc.after.merge %>% 
-  ggplot(aes(x = as.factor(sample), y = reads_mapped, fill = as.factor(replicate))) +
+# The number of mapped reads for each sample. (1) correspond to the initial sequencing. (2) corresponds to the supplementary sequencing.
+# `merged` corresponds to the combindation of the two libraries. 
+qc.df %>% 
+  filter(library == "merged") %>% 
+  ggplot(aes(x = reorder(as.factor(sample), -reads_mapped), y = reads_mapped, fill = as.factor(replicate))) +
     geom_bar(stat = "identity", position = position_dodge()) + 
-    scale_fill_manual(values = experiment.colors) +
+    scale_fill_manual(values = experiment.colors, name = "Replicate") +
     xlab("Sample") +
     ylab("Number of Mapped Reads") +
     theme_classic() +
@@ -130,43 +159,65 @@ qc.after.merge %>%
     theme(text=element_text(size=18)) +
     theme(plot.title = element_text(hjust = 0.5)) +
     theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
-    theme(legend.position="none") +
     theme(axis.text.x=element_text(angle=45, hjust=1))
 
 ```
 
 The percent of the sample that was filtered is pretty all over the place, with some samples nearly 100% SARS-CoV-2 and others closer to 5% SARS-CoV-2. Interestingly, there are some pretty bid discrepancies between replicates. I wonder if this indicates low template number in some way? Perhaps high template number samples are more resistant to differences in the percentage of SARS-CoV-2 reads? This is the average of different sequening attemps for each sample/replicate pair.
 
-```{r Percent Filtered, echo = FALSE, message = FALSE, fig.width=7, fig.height=3, fig.align='center'}
+```{r Percent Filtered replicates, echo = FALSE, message = FALSE, fig.width=11, fig.height=5, fig.align='center'}
 
-# Just the `merged` samples for a better look.
 qc.before.merge %>% 
-  ggplot(aes(x = as.factor(sample), y = percent_filtered_viral_reads, fill = as.factor(replicate))) +
+  filter(library == "1") %>% 
+  select(sample, replicate, library, percent_filtered_viral_reads) %>% 
+  pivot_wider(names_from = replicate, values_from = percent_filtered_viral_reads) %>% 
+  mutate(percent_diff = abs(`1` - `2`)) %>% 
+  pivot_longer(!c("sample", "library", "percent_diff"), names_to = "replicate", values_to = "percent_filtered_viral_reads") %>%
+  ggplot(aes(x = reorder(as.factor(sample), -percent_diff), y = percent_filtered_viral_reads, fill = as.factor(replicate))) +
     geom_bar(stat = "identity", position = position_dodge()) + 
-    scale_fill_manual(values = experiment.colors) +
+    scale_fill_manual(values = experiment.colors, name = "Replicate") +
+    scale_y_continuous(labels = percent) + 
     xlab("Sample") +
-    ylab("Number of Mapped Reads") +
+    ylab("SARS-CoV-2 Reads") +
     theme_classic() +
     theme(legend.position="bottom", legend.box = "horizontal") +
     theme(legend.box.background = element_rect(colour = "black")) +
     theme(text=element_text(size=18)) +
     theme(plot.title = element_text(hjust = 0.5)) +
     theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
-    theme(legend.position="none") +
+    theme(axis.text.x=element_text(angle=45, hjust=1))
+
+```
+
+```{r Percent Filtered library, echo = FALSE, message = FALSE, fig.width=11, fig.height=5, fig.align='center'}
+
+qc.before.merge %>% 
+  ggplot(aes(x = (as.factor(sample)), y = percent_filtered_viral_reads, fill = as.factor(library))) +
+    geom_bar(stat = "identity", position = position_dodge()) + 
+    scale_fill_manual(values = experiment.colors, name = "Replicate") +
+    scale_y_continuous(labels = percent) + 
+    xlab("Sample") +
+    ylab("SARS-CoV-2 Reads") +
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=18)) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
     theme(axis.text.x=element_text(angle=45, hjust=1))
 
 ```
 
 Below is a plot of the average base quality of each sequencing run. The average base quality of all samples falls above the target score of 25, which implies an error rate of ~0.003.
 
-```{r Average Base Quality, echo = FALSE, message = FALSE, fig.width=7, fig.height=3, fig.align='center'}
+```{r Average Base Quality, echo = FALSE, message = FALSE, fig.width=11, fig.height=5, fig.align='center'}
 
 # Just the `merged` samples for a better look.
 qc.after.merge %>% 
   ggplot(aes(x = as.factor(sample), y = average_quality, fill = as.factor(replicate))) +
     geom_bar(stat = "identity", position = position_dodge()) +
     geom_hline(yintercept = 25, col = "red", linetype = 3, size = 2) +
-    scale_fill_manual(values = experiment.colors) +
+    scale_fill_manual(values = experiment.colors, name = "Replicate") +
     xlab("Sample") +
     ylab("Average Quality Score (Phred)") +
     theme_classic() +
@@ -175,7 +226,6 @@ qc.after.merge %>%
     theme(text=element_text(size=18)) +
     theme(plot.title = element_text(hjust = 0.5)) +
     theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
-    theme(legend.position="none") +
     theme(axis.text.x=element_text(angle=45, hjust=1))
 
 ```

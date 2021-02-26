@@ -21,7 +21,7 @@ knitr::opts_chunk$set(echo = FALSE)
 ## ==== Install Required Packages ==== ##
 
 ## List of all packages needed -- non-BioManager installed
-packages = c("tidyverse")
+packages = c("tidyverse", "scales")
 ## Check that packages are installed, if not, install them
 installed_packages <- packages %in% rownames(installed.packages())
 if (any(installed_packages == FALSE)) {
@@ -101,32 +101,59 @@ low.coverage.runs = average.depth.df %>% filter(Percent < 80) %>% pull(Run)
 
 ```
 
-How to correctly combine the two samples to analyze mutational effects? 
-
 ```{r}
 
-# Samples to analyze
-final.samples.df = pysam.combined.snps.df %>% 
+# Final samples and mutations to analyze: 
+# Remove low coverage samples
+# Remove alleles below 2%
+# Remove alleles with less than 100X coverage
+# Remove samples with poor replicate condordance: 10089, 10117, *10088*
+
+selected.variant.df = pysam.combined.snps.df %>% 
   mutate(Coverage = ifelse(ACCESSION %in% low.coverage.samples, "Low", "High")) %>% 
   filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
   filter(DP.one >= 100 & DP.two >= 100) %>% 
   filter(Coverage == "High") %>% 
   filter(!(ACCESSION %in% c("10089", "10117"))) %>% 
+  # Allele frequency is the average of the two replicates
   mutate(AF = (AF.one + AF.two)/2) %>% 
-  select(ACCESSION, POS, REF, ALT, AF, AA_CHANGE = "AA_CHANGE.one", EFFECT = "EFFECT.one", GENE = "GENE.one") %>% 
+  select(ACCESSION, POS, REF, ALT, AF, AA_CHANGE = "AA_CHANGE.one", EFFECT = "EFFECT.one", GENE = "GENE.one") 
+
+# Filp the consensus variants
+fipped.cons = selected.variant.df %>% 
+  filter(AF >= 0.5) %>% 
   rename(ALT = "REF", REF = "ALT") %>% 
-  mutate(AF = ifelse(AF >= 0.5, (1 - AF), AF)) %>% 
-  filter(AF >= 0.02)
+  mutate(AF = (1 - AF)) %>% 
+  filter(AF >= 0.02) %>% 
+  separate(AA_CHANGE, into = c("WT", "AAPOS"),
+           sep = "((?<=[A-Za-z])(?=[0-9]))") %>% 
+  separate(AAPOS, into = c("AAPOS", "MUT"),
+           sep = "((?<=[0-9])(?=[A-Za-z]))") %>% 
+  mutate(AA_CHANGE = paste0(MUT, AAPOS, WT)) %>% 
+  select(!c("MUT", "WT", "AAPOS"))
+
+final.variant.df = rbind(filter(selected.variant.df, AF < 0.5), fipped.cons) %>% 
+  mutate(SNV = paste0(REF, POS, ALT))
 
 ```
 
 ```{r}
 
-final.samples.df %>% 
+average.number.of.minor.variants = final.variant.df %>% 
   group_by(ACCESSION) %>% 
   count() %>% 
   pull(n) %>% 
-  mean(.)
+  mean(.) %>% 
+  round(.)
+
+final.variant.df %>% 
+  group_by(ACCESSION) %>% 
+  count() %>% 
+  ggplot(aes(x = n, y = reorder(ACCESSION, -n))) + 
+    geom_bar(stat = 'identity') + 
+    ylab('Sample') + 
+    xlab('Number of minor variants') +
+    theme_bw(18)
 
 ```
 
@@ -135,11 +162,11 @@ There is a mean of ~ 4 minor variants per sample.
 
 ```{r}
 
-final.samples.df %>% 
+final.variant.df %>% 
   ggplot(aes(x = AF)) + 
     geom_histogram(bins = 20) + 
     ylab("Count") + 
-    ggtitle("MAF Histogram") + 
+    xlab("Allele Frequency") +
     theme_bw(18) +
     theme(plot.title = element_text(hjust = 0.5)) 
   
@@ -147,31 +174,143 @@ final.samples.df %>%
 
 ```{r}
 
-shared.snps = final.samples.df %>% 
-  group_by(POS, REF, ALT) %>% 
+final.variant.df %>% 
+  group_by(SNV) %>% 
   count() %>% 
   arrange(-n) %>% 
-  filter(n > 1) %>% 
-  mutate(SNP = paste0(REF, POS, ALT)) %>% 
-  pull(SNP)
-
-
-final.samples.df = final.samples.df %>% 
-  mutate(SNP = paste0(REF, POS, ALT)) 
-
-final.samples.df[which(final.samples.df$SNP %in% shared.snps), ] %>%
-  group_by(ACCESSION) %>% 
-  count() %>% 
-  filter(n > 2) %>% 
-  pull(ACCESSION) %>%
-  unique(.)
+  ggplot(aes(x = n)) + 
+    geom_histogram(bins = 30) + 
+    xlab("Number of samples sharing site") +
+    ylab("Number of sites") +
+    scale_x_continuous(breaks = c(2, 4, 6, 8)) +
+    theme_bw(20)
+  
 ```
 
 
+```{r Percent by sample, message=FALSE, warning=FALSE, fig.width=8, fig.height=5, fig.align='center'}
+
+shared.snps = final.variant.df %>% 
+  group_by(SNV) %>% 
+  count() %>% 
+  filter(n > 1) %>% 
+  pull(SNV)
+
+shared.snps.df = final.variant.df[which(final.variant.df$SNV %in% shared.snps),]
+
+shared.snps.df %>% 
+  ggplot(aes(x = reorder(ACCESSION, AF), y = AF)) +
+    geom_point(size = 2) + 
+    facet_wrap(~SNV) + 
+    xlab("Sample") + 
+    ylab("Allele Frequency") +
+    scale_y_continuous(labels = percent, limits = c(0, .15)) +
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=18)) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+    theme(axis.text.x=element_text(angle=45, hjust=1))
 
 
 
 
+```
+
+Does T18402A ever reach 100% frequency? 
+
+```{r Probably an artifact, message=FALSE, warning=FALSE, fig.width=6, fig.height=3, fig.align='center'}
+
+good.runs = average.depth.df %>% 
+  mutate(Run = paste(Accession, Replicate, sep = "_")) %>% 
+  filter(Percent >= 80) %>% 
+  pull(Run)
+
+pysam.df %>% 
+  mutate(Run = paste(ACCESSION, REPLICATE, sep = "_")) %>% 
+  filter(Run %in% good.runs) %>% 
+  filter(POS == 18402) %>% 
+  filter(AF >= 0.02) %>% 
+  ggplot(aes(x = reorder(ACCESSION, AF), y = AF)) +
+    geom_point(size = 3) + 
+    facet_wrap(~REPLICATE) +
+    xlab("Sample") + 
+    ylab("Allele Frequency") +
+    ggtitle("T18402A is likely an artifact") +
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=18)) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+    theme(axis.text.x=element_text(angle=45, hjust=1))
 
 
 
+```
+
+
+```{r Minor Varaints, message=FALSE, warning=FALSE, fig.width=10, fig.height=30, fig.align='center'}
+
+high.confidence.snps = final.variant.df %>% 
+  pull(POS) %>% 
+  unique(.) 
+
+good.runs = average.depth.df %>% 
+  mutate(Run = paste(Accession, Replicate, sep = "_")) %>% 
+  filter(Percent >= 80) %>% 
+  pull(Run)
+
+pysam.df %>% 
+  mutate(Run = paste(ACCESSION, REPLICATE, sep = "_")) %>% 
+  filter(Run %in% good.runs) %>% 
+  filter(POS %in% high.confidence.snps) %>% 
+  filter(AF >= 0.02) %>% 
+  ggplot(aes(x = reorder(ACCESSION, AF), y = AF)) +
+    geom_point(size = 3) + 
+    facet_grid(cols = vars(REPLICATE), rows = vars(POS)) +
+    xlab("Sample") + 
+    ylab("Allele Frequency") +
+    theme_bw() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=15)) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+    theme(axis.text.x=element_text(angle=45, hjust=1))
+
+```
+
+
+```{r Fixed Mutations, message=FALSE, warning=FALSE, fig.width=10, fig.height=30, fig.align='center'}
+
+high.confidence.fixed = selected.variant.df %>% 
+  filter(AF >= 0.5) %>% 
+  pull(POS) %>% 
+  unique(.) 
+
+good.runs = average.depth.df %>% 
+  mutate(Run = paste(Accession, Replicate, sep = "_")) %>% 
+  filter(Percent >= 80) %>% 
+  pull(Run)
+
+pysam.df %>% 
+  mutate(Run = paste(ACCESSION, REPLICATE, sep = "_")) %>% 
+  filter(Run %in% good.runs) %>% 
+  filter(POS %in% high.confidence.fixed) %>% 
+  filter(AF >= 0.02) %>% 
+  ggplot(aes(x = reorder(ACCESSION, AF), y = AF)) +
+    geom_point(size = 3) + 
+    facet_grid(cols = vars(REPLICATE), rows = vars(POS)) +
+    xlab("Sample") + 
+    ylab("Allele Frequency") +
+    theme_bw() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=15)) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+    theme(axis.text.x=element_text(angle=45, hjust=1))
+
+```

@@ -39,6 +39,10 @@ invisible(lapply(c(packages), library, character.only = TRUE))
 tree.data = "../../results/consensus/merged.consenus.fa.treefile"
 # Edit distance
 editdistance.data = "../../config/edit_distance.csv"
+# Tree data from GISAD
+GISAID.tree.data = "../../config/representative_clades_aligned.fasta.treefile"
+# Tree metadata 
+metadata.data = "../../config/representative_clades_metadata.csv"
 
 ```
 
@@ -51,6 +55,23 @@ ggtree(tree) +
   geom_tiplab(color='firebrick', size = 10) 
 
 ```
+
+```{r GISAID phylogeny}
+
+
+GISAID.tree = read.tree(GISAID.tree.data)
+info = as.data.frame(read.csv(metadata.data) %>% select(!X) %>% 
+                       select(id = "gisaid_epi_isl",
+                              clade = "Nextstrain_clade", 
+                              study))
+
+ 
+ggtree(GISAID.tree, layout = "equal_angle") %<+% info +
+  geom_tippoint(aes(subset=(study=="internal")), shape=1, size=2, col='red') +
+  scale_color_manual(values=c("red", "green", "blue", "purple", "black", "orange")) 
+
+```
+
 
 ```{r Distance Heatmap, message = FALSE, warning = FALSE, fig.width=5, fig.height=5, fig.align='center'}
 
