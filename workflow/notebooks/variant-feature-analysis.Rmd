@@ -21,7 +21,7 @@ knitr::opts_chunk$set(echo = FALSE)
 ## ==== Install Required Packages ==== ##
 
 ## List of all packages needed -- non-BioManager installed
-packages = c("tidyverse", "scales")
+packages = c("tidyverse", "scales", "RColorBrewer")
 ## Check that packages are installed, if not, install them
 installed_packages <- packages %in% rownames(installed.packages())
 if (any(installed_packages == FALSE)) {
@@ -314,3 +314,129 @@ pysam.df %>%
     theme(axis.text.x=element_text(angle=45, hjust=1))
 
 ```
+
+
+```{r Summary Figure, message=FALSE, warning=FALSE, fig.width=16, fig.height=4, fig.align='center'}
+
+# Good samples where both replicates have more than 80% coverage (14)
+samples.to.include = average.depth.df %>% 
+  mutate(Run = paste(Accession, Replicate, sep = "_")) %>% 
+  filter(Percent >= 80) %>% 
+  group_by(Accession) %>% 
+  count() %>% 
+  filter(n == 2) %>% 
+  pull(Accession)
+
+# Mutations from the reference
+mutations.to.include = selected.variant.df %>% pull(POS)
+
+pysam.df %>% 
+  filter(ACCESSION %in% samples.to.include) %>% 
+  filter(POS %in% mutations.to.include) %>% 
+  filter(AF > 0.02) %>% 
+  ggplot(aes(x = reorder(as.factor(POS), AF), y = AF, col = REPLICATE)) + 
+    geom_jitter(size = 5, width = .15) +
+    xlab("Genomic Position with SNP") + 
+    ylab("Allele Frequency") +
+    scale_color_manual(values = c("#3232a8", "#b03733"), name = "Replicate") +
+    theme_bw() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=28)) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+    theme(axis.text.x=element_text(angle=45, hjust=1)) +
+    theme(panel.grid.major.x = element_line(size = 1.5, linetype = "solid"))
+
+  
+
+```
+
+
+```{r Summary Figure, message=FALSE, warning=FALSE, fig.width=18, fig.height=5, fig.align='center'}
+
+  
+pallete = c("#4287f5", 
+            "#b5183a", 
+            "#eaed24", 
+            "#22e051", 
+            "#dbab18", 
+            "#e815c5",
+            "#38fffc", 
+            "#ff38b6", 
+            "#bda679", 
+            "#ffb3b3", 
+            "#12128a", 
+            "#a1a1a1", 
+            "#000000",
+            "#156b00")
+
+# Mutations from the reference exlucing the 'boat consensus' 
+boat.consensus = selected.variant.df %>% 
+  filter(AF > 0.5) %>% 
+  mutate(SNV = paste0(REF, POS, ALT)) %>% 
+  group_by(SNV) %>% 
+  count() %>% 
+  filter(n == 12) %>% 
+  pull(SNV)
+
+positions.to.include = selected.variant.df %>% 
+  mutate(SNV = paste0(REF, POS, ALT)) %>% 
+  filter(!SNV %in% boat.consensus) %>% 
+  pull(POS)
+
+pysam.combined.snps.df %>% 
+  filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
+  filter(DP.one >= 100 & DP.two >= 100) %>% 
+  mutate(AF = (AF.one + AF.two)/2) %>% 
+  select(ACCESSION, POS, REF, ALT, AF, AA_CHANGE = "AA_CHANGE.one", EFFECT = "EFFECT.one", GENE = "GENE.one") %>% 
+  mutate(SNV = paste0(REF, POS, ALT)) %>% 
+  filter(AF > 0.02) %>%   
+  filter(ACCESSION %in% samples.to.include) %>% 
+  filter(POS %in% positions.to.include) %>% 
+  ggplot(aes(x = reorder(as.factor(POS), AF), y = AF, col = ACCESSION)) + 
+    geom_jitter(size = 5, width = .25) +
+    xlab("Genomic Position with SNP") + 
+    ylab("Allele Frequency") + 
+    scale_color_manual(values = pallete) +
+    theme_bw() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=28)) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+    theme(axis.text.x=element_text(angle=45, hjust=1)) +
+    theme(panel.grid.major.x = element_line(size = 1.5, linetype = "solid")) +
+    theme(legend.position = "none")
+
+
+```
+
+```{r}
+
+pysam.df %>% 
+  filter(ACCESSION %in% samples.to.include) %>% 
+  filter(POS %in% mutations.to.include) %>% 
+  filter(AF >= 0.02) %>% 
+  mutate(High_Confidence = ifelse(AF >= 0.05, "YES", "NO")) %>% 
+  ggplot(aes(x = STRAND_RATIO, fill = High_Confidence)) + 
+    geom_histogram() +
+    xlab("Strand Ratio") + 
+    ylab("Count") + 
+    scale_fill_manual(values = c("#fa130f", "#262aff"), name = "Greater than 5%") +
+    theme_bw(15)
+
+pysam.df %>% 
+  filter(ACCESSION %in% samples.to.include) %>% 
+  filter(POS %in% mutations.to.include) %>% 
+  filter(AF >= 0.02) %>% 
+  mutate(High_Confidence = ifelse(AF >= 0.05, "YES", "NO")) %>% 
+  ggplot(aes(x = MEAN_READPOS, fill = High_Confidence)) + 
+    geom_histogram()+
+    xlab("Mean Read Position") + 
+    ylab("Count") + 
+    scale_fill_manual(values = c("#fa130f", "#262aff"), name = "Greater than 5%") +
+    theme_bw(15)
+
+```
+

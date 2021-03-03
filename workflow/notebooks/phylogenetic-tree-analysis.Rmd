@@ -40,7 +40,7 @@ tree.data = "../../results/consensus/merged.consenus.fa.treefile"
 # Edit distance
 editdistance.data = "../../config/edit_distance.csv"
 # Tree data from GISAD
-GISAID.tree.data = "../../config/representative_clades_aligned.fasta.treefile"
+GISAID.tree.data = "../../config/representative_sequences_aligned.fasta.treefile"
 # Tree metadata 
 metadata.data = "../../config/representative_clades_metadata.csv"
 
@@ -56,19 +56,31 @@ ggtree(tree) +
 
 ```
 
-```{r GISAID phylogeny}
+```{r GISAID phylogeny, fig.width=12, fig.height=35, fig.align='center'}
 
 
 GISAID.tree = read.tree(GISAID.tree.data)
-info = as.data.frame(read.csv(metadata.data) %>% select(!X) %>% 
+info = as.data.frame(read.csv(metadata.data) %>% 
                        select(id = "gisaid_epi_isl",
                               clade = "Nextstrain_clade", 
                               study))
 
  
-ggtree(GISAID.tree, layout = "equal_angle") %<+% info +
-  geom_tippoint(aes(subset=(study=="internal")), shape=1, size=2, col='red') +
-  scale_color_manual(values=c("red", "green", "blue", "purple", "black", "orange")) 
+ggtree(GISAID.tree, size = 1.5) %<+% info +
+  geom_tiplab() +
+  geom_tippoint(aes(color = clade), size=2) +
+  geom_tippoint(aes(subset=(study=="internal")), size = 3, color = 'red') + 
+  geom_hilight(node = 579, fill = "gold") +
+  scale_color_manual(values=c("pink", "green", "blue", "purple", "black", "orange"))  + 
+  theme(legend.position = 'none')
+
+
+to.investigate = c("EPI_ISL_570234", "EPI_ISL_570278", "EPI_ISL_570325", "EPI_ISL_570326", "EPI_ISL_570328")
+
+read.csv(metadata.data) %>%  
+  filter(gisaid_epi_isl %in% to.investigate) %>% 
+  select(strain, gisaid_epi_isl, date, authors)
+
 
 ```
 

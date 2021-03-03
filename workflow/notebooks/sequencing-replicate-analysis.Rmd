@@ -196,4 +196,12 @@ included.variants.df %>%
 
 ```
 
+```{r}
+
+included.variants.df %>% 
+  filter(ACCESSION == 10089 | ACCESSION == 10117) %>% 
+  filter(AF.two > .1) %>% 
+  filter(AF.one < .9) %>% view()
+
+```
 
