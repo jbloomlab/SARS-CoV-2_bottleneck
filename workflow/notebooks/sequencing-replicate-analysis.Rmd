@@ -138,7 +138,7 @@ included.variants.df = pysam.combined.snps.df %>%
   mutate(Coverage = ifelse(ACCESSION %in% low.coverage.samples, "Low", "High")) %>%
   filter(Coverage == "High") %>% 
   filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
-  filter(DP.one >= 100 & DP.two >= 100)
+  filter(DP.one >= 100 & DP.two >= 100) 
  
  
 p1 = included.variants.df %>% 
