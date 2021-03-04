@@ -76,6 +76,7 @@ consensus_dir: results/consensus
 tools: config/tools
 ref_dir: config/ref
 gtf_dir: config/gtf
+gisaid_dir: condig/gisaid
 index_dir: 
   bwa: config/index/bwa
   star: config/index/star
