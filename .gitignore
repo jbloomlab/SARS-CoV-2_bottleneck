@@ -141,3 +141,5 @@ results/
 *.out
 *.Rhistory
 **.RDS
+config/gisaid
+
