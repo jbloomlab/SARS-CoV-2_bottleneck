@@ -34,8 +34,9 @@ rule all:
         join(config['coverage_dir'], "coverage.stats"),
         join(config['coverage_dir'], "merged.average.depth"),
         join(config['coverage_dir'], "merged.depth"),
-        join(config['qc_dir'], "BBduk_filtered_reads.csv")
-
+        join(config['qc_dir'], "BBduk_filtered_reads.csv"),
+        join(config['gisaid_dir'], "smilar_to_boat_genomes.csv"),
+        join(config['gisaid_dir'], "phylogeny.aligned.fasta.treefile")
 rule clean:
     shell:
         """

@@ -40,9 +40,9 @@ tree.data = "../../results/consensus/merged.consenus.fa.treefile"
 # Edit distance
 editdistance.data = "../../config/edit_distance.csv"
 # Tree data from GISAD
-GISAID.tree.data = "../../config/representative_sequences_aligned.fasta.treefile"
+GISAID.tree.data = "../../config/phylogeny.aligned.fasta.treefile"
 # Tree metadata 
-metadata.data = "../../config/representative_clades_metadata.csv"
+metadata.data = "../../config/phylogeny_metadata.csv"
 
 ```
 

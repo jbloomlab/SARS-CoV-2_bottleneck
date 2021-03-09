@@ -1,12 +1,12 @@
 ## ---------------------------
 ##
-## Script name: `get_gisaid_ids``
+## Script name: `blastn_gisaid_ids``
 ##
-## Purpose of script: Get a random samples of 100 genomes from each clade before a specific date
+## Purpose of script: Get a sequences from clade 20C to make a blastn database
 ##
 ## Author: Will Hannon
 ##
-## Date Created: 2021-02-23
+## Date Created: 2021-03-04
 ##
 ## Copyright (c) Will Hannon, 2021
 ## Email: wwh22@uw.edu
@@ -19,9 +19,6 @@ require(tidyverse)
 
 # IMPORTANT: this is randomized, so set the seed for reproduciblity 
 set.seed(20210120)
-
-# How many random genomes to samples
-n_genomes = 100
 
 # Set the max collection date - currently the middle of June (samples were collected by May 29th)
 max.collection.date = "2020-06-15"
@@ -40,40 +37,14 @@ GISAID.df = read_tsv("../../config/gisaid/metadata_2021-03-04_10-31.tsv") %>%
 Addieta.seqs.df = read_csv("../../config/addieta-et-al_supplemental-table-2.csv")
 Addieta.seqs = Addieta.seqs.df$`GISAID Accession Number`
 
-# Similar strains from BlastN
-similar.strains = read_csv("../../config/gisaid/smilar_to_boat_genomes.csv")$strain
-
 # All of the samples excluding those used in the paper. 
 all.clades.df = GISAID.df[which(!GISAID.df$gisaid_epi_isl %in% Addieta.seqs),]
-all.clades.df = all.clades.df[which(!all.clades.df$strain %in% similar.strains),]
+addieta.seqs.df = GISAID.df[which(GISAID.df$gisaid_epi_isl %in% Addieta.seqs),] %>% 
+  mutate(study = "internal")
 
-# Get the clades to sample (Any clade represented by more than 1000 sequences globablly at that time)
-clades.to.samples = all.clades.df %>% 
-  filter(!is.na(Nextstrain_clade)) %>% 
-  group_by(Nextstrain_clade) %>% 
-  count() %>% 
-  filter(n > 1000) %>% 
-  pull(Nextstrain_clade)
+# All of the sequences that meet quality standards in clade 20C for blastn database (excludes the boat seqs)
+write.csv(select(filter(all.clades.df, Nextstrain_clade == '20C'), gisaid_epi_isl, strain), "../../config/gisaid/bastn_gisaid_ids.csv", row.names = F)
 
-# Randomly select 100 sequences from each of the major clades; 19A, 19B, 20A, 20B, 20C, 20D
-selected.clades.df = data.frame()
-
-for (i in 1:length(clades.to.samples)) {
-  
-  selection = all.clades.df %>% 
-    filter(Nextstrain_clade == clades.to.samples[i]) %>% 
-    sample_n(., n_genomes)
-  
-  selected.clades.df = rbind(selected.clades.df, selection)
-  
-}
-
-# The GISAID ids that contain a representation of each clade and the boat samples
-write.csv(selected.clades.df, "../../config/gisaid/phylogeny_gisaid_ids.csv", row.names = F)
-
-
-
-
-
-
+# The full metadata for the boat samples
+write.csv(addieta.seqs.df, "../../config/gisaid/boat_gisaid_ids.csv", row.names = F)
 

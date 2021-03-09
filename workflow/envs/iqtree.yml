@@ -1,4 +1,7 @@
 channels:
   - anaconda
+  - bioconda
 dependencies:
   - iqtree
+  - blast
+  - mafft
