@@ -40,9 +40,9 @@ tree.data = "../../results/consensus/merged.consenus.fa.treefile"
 # Edit distance
 editdistance.data = "../../config/edit_distance.csv"
 # Tree data from GISAD
-GISAID.tree.data = "../../config/phylogeny.aligned.fasta.treefile"
+GISAID.tree.data = "../../config/gisaid/phylogeny.aligned.fasta.treefile"
 # Tree metadata 
-metadata.data = "../../config/phylogeny_metadata.csv"
+metadata.data = "../../config/gisaid/phylogeny_metadata.csv"
 
 ```
 
@@ -61,7 +61,8 @@ ggtree(tree) +
 
 GISAID.tree = read.tree(GISAID.tree.data)
 info = as.data.frame(read.csv(metadata.data) %>% 
-                       select(id = "gisaid_epi_isl",
+                       mutate(study = if_else(study == 'internal', 'internal', 'external')) %>% 
+                       select(id = "strain",
                               clade = "Nextstrain_clade", 
                               study))
 
@@ -70,16 +71,15 @@ ggtree(GISAID.tree, size = 1.5) %<+% info +
   geom_tiplab() +
   geom_tippoint(aes(color = clade), size=2) +
   geom_tippoint(aes(subset=(study=="internal")), size = 3, color = 'red') + 
-  geom_hilight(node = 579, fill = "gold") +
   scale_color_manual(values=c("pink", "green", "blue", "purple", "black", "orange"))  + 
   theme(legend.position = 'none')
 
 
-to.investigate = c("EPI_ISL_570234", "EPI_ISL_570278", "EPI_ISL_570325", "EPI_ISL_570326", "EPI_ISL_570328")
-
-read.csv(metadata.data) %>%  
-  filter(gisaid_epi_isl %in% to.investigate) %>% 
-  select(strain, gisaid_epi_isl, date, authors)
+# to.investigate = c("EPI_ISL_570234", "EPI_ISL_570278", "EPI_ISL_570325", "EPI_ISL_570326", "EPI_ISL_570328")
+# 
+# read.csv(metadata.data) %>%  
+#   filter(gisaid_epi_isl %in% to.investigate) %>% 
+#   select(strain, gisaid_epi_isl, date, authors)
 
 
 ```
