@@ -5,36 +5,13 @@
 # Date: 01/29/2021
 #
 
-rule make_boat_consensus:
-    input: bam=expand(join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.marked.merged.bam"), accession=list(set(pd.read_csv(config['samples']['file'])['Run'])), aligner=['BWA']),
-           bai=expand(join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.marked.merged.bam.bai"), accession=list(set(pd.read_csv(config['samples']['file'])['Run'])), aligner=['BWA']), 
-           genome=join(config['index_dir']['samtools'], 'SARS2.fa')
-    output: join(config['consensus_dir'], "merged.consenus.fa")
-    conda: "../envs/pysam.yml"
-    script: "../scripts/make-consensus-sequence.py"
-
-
-rule iqtree_boat_phylogeny:
-    input: join(config['consensus_dir'], "merged.consenus.fa")
-    output: join(config['consensus_dir'], "merged.consenus.fa.iqtree")
-    conda: "../envs/iqtree.yml"
-    shell: "iqtree -s {input}"
-
-
-rule align_GISAID_sequences:
-    input: seqs=join(config['gisaid_dir'], "phylogeny.fasta"),
-           reference=join(config['ref_dir'], "SARS2.fa")
-    output: join(config['gisaid_dir'], "phylogeny.aligned.fasta")
-    conda: "../envs/iqtree.yml"
-    threads: 4
-    shell: "mafft --6merpair --thread {threads} --keeplength --addfragments {input.seqs} {input.reference} > {output}"
-
-
-rule iqtree_GISAID_phylogeny: 
-    input: join(config['gisaid_dir'], "phylogeny.aligned.fasta")
-    output: join(config['gisaid_dir'], "phylogeny.aligned.fasta.treefile")
-    conda: "../envs/iqtree.yml"
-    shell: "iqtree -s {input} -m GTR+I+G"
+rule get_blast_sequences:
+    input: metadata = join(config['gisaid_dir'], "metadata_2021-03-04_10-31.tsv"),
+           sequences = join(config['gisaid_dir'], "sequences_2021-03-04_08-34.fasta")
+    output: blast_seqs = join(config['gisaid_dir'], "bastn_gisaid_ids.csv"), 
+            boat_seqs = join(config['gisaid_dir'], "boat_gisaid_ids.csv")
+    conda: "../envs/r.yml"
+    script: "../scripts/blastn_gisaid_ids.R"
 
 
 rule make_blast_database: 
@@ -78,6 +55,38 @@ rule parse_blast_results:
         metadata_df = pd.read_csv(input.metadata, sep='\t', low_memory=False) 
         metadata_df = metadata_df[metadata_df.strain.isin(df.strain)]
         metadata_df.to_csv(str(output), index=False )
+
+
+rule align_GISAID_sequences:
+    input: seqs=join(config['gisaid_dir'], "phylogeny.fasta"),
+           reference=join(config['ref_dir'], "SARS2.fa")
+    output: join(config['gisaid_dir'], "phylogeny.aligned.fasta")
+    conda: "../envs/iqtree.yml"
+    threads: 4
+    shell: "mafft --6merpair --thread {threads} --keeplength --addfragments {input.seqs} {input.reference} > {output}"
+
+
+rule iqtree_GISAID_phylogeny: 
+    input: join(config['gisaid_dir'], "phylogeny.aligned.fasta")
+    output: join(config['gisaid_dir'], "phylogeny.aligned.fasta.treefile")
+    conda: "../envs/iqtree.yml"
+    shell: "iqtree -s {input} -m GTR+I+G"
+
+
+rule make_boat_consensus:
+    input: bam=expand(join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.marked.merged.bam"), accession=list(set(pd.read_csv(config['samples']['file'])['Run'])), aligner=['BWA']),
+           bai=expand(join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.marked.merged.bam.bai"), accession=list(set(pd.read_csv(config['samples']['file'])['Run'])), aligner=['BWA']), 
+           genome=join(config['index_dir']['samtools'], 'SARS2.fa')
+    output: join(config['consensus_dir'], "merged.consenus.fa")
+    conda: "../envs/pysam.yml"
+    script: "../scripts/make-consensus-sequence.py"
+
+
+rule iqtree_boat_phylogeny:
+    input: join(config['consensus_dir'], "merged.consenus.fa")
+    output: join(config['consensus_dir'], "merged.consenus.fa.iqtree")
+    conda: "../envs/iqtree.yml"
+    shell: "iqtree -s {input}"
 
 
 def hamming_distance(chaine1, chaine2):
