@@ -21,7 +21,7 @@ knitr::opts_chunk$set(echo = FALSE)
 ## ==== Install Required Packages ==== ##
 
 ## List of all packages needed -- non-BioManager installed
-packages = c("tidyverse", "ggrepel", "plotly", "ggpubr")
+packages = c("tidyverse", "ggrepel", "plotly", "ggpubr", "gridExtra", 'grid')
 ## Check that packages are installed, if not, install them
 installed_packages <- packages %in% rownames(installed.packages())
 if (any(installed_packages == FALSE)) {
@@ -48,30 +48,33 @@ average.depth.data = "../../results/coverage/merged.average.depth"
 
 ```{r Format data, include=FALSE, warning=FALSE, message=FALSE}
 
+# Low quality samples 
+average.depth.df = read.table(average.depth.data, header = T) %>% 
+  separate(Accession, into = c("Accession", "Replicate")) %>% 
+  mutate(Run = paste0(Accession, Replicate))
+
+low.coverage.samples = average.depth.df %>% filter(Percent < 80) %>% pull(Accession)
+low.coverage.runs = average.depth.df %>% filter(Percent < 80) %>% pull(Run)
+
+
 # Import the data splitting the accession ID into the Accession and the Replicate
 pysam.df = read_csv(pysam.data) %>% 
   separate(ACCESSION, into = c("ACCESSION", "REPLICATE"), sep = "_") %>% 
   mutate(REPLICATE = as.factor(REPLICATE))
 
-# Get only the consensus alleles
-pysam.consensus.df = pysam.df %>% 
-  filter(CONS == TRUE)
+# Join the custom pysam SNPs by replicate
+pysam.to.join.df = pysam.df %>% 
+  select(!c("SNP", "CONS"))
 
-# Get only the SNPs
-pysam.snp.df = pysam.df %>% 
-  filter(SNP == TRUE) 
-
-# Get the prevalence of SNPs between replicates by filtering 
-# and joining by the samples, position in the genome, reference
-# allele (this is redundant), and the alternative allele (SNP).
-pysam.combined.snps.df = full_join(
-  filter(pysam.snp.df, REPLICATE == "1"),
-  filter(pysam.snp.df, REPLICATE == "2"), 
-  by = c("ACCESSION", "POS", "REF", "ALT"),
+pysam.combined.df = full_join(
+  filter(pysam.to.join.df, REPLICATE == "1"),
+  filter(pysam.to.join.df, REPLICATE == "2"), 
+  by = c("ACCESSION", "POS", "REF", "ALT", "EFFECT", "GENE", "CODON_POS"),
   suffix = c(".one", ".two")
   ) %>% 
-  select(!c("REPLICATE.one", "REPLICATE.two", "SNP.one", "SNP.two", "CONS.one", "CONS.two")) %>% 
-  mutate_each(list( ~ replace(., which(is.na(.)), 0)))
+  select(!c("REPLICATE.one", "REPLICATE.two")) %>% 
+  mutate_each(list( ~ replace(., which(is.na(.)), 0))) %>% 
+  mutate(Coverage = ifelse(ACCESSION %in% low.coverage.samples, "Low", "High"))
 
 # Varinat data from lofreq and varscan
 variant.df = read_csv(variant.data) %>% 
@@ -91,117 +94,85 @@ variant.combined.snps.df = full_join(
   mutate_each(list( ~ replace(., which(is.na(.)), 0)))
 
 
-# Low quality samples 
-average.depth.df = read.table(average.depth.data, header = T) %>% 
-  separate(Accession, into = c("Accession", "Replicate")) %>% 
-  mutate(Run = paste0(Accession, Replicate))
-
-low.coverage.samples = average.depth.df %>% filter(Percent < 80) %>% pull(Accession)
-low.coverage.runs = average.depth.df %>% filter(Percent < 80) %>% pull(Run)
-
 ```
 
 ## Concordance
 
 Below is a plot of the concordance of allele frequency between the sequencing replicates of all libraries. This doesn't include any filters for depth of sequencing. I colored any runs which had a replicate less than 80% covered by more than 200 reads red. This doesn't account for all of the discrepencies in allele frequency.   
 
-```{r Concordance Plot, warning=FALSE, message = FALSE, fig.width=7, fig.height=5, fig.align='center'}
-
-pysam.combined.snps.df %>% 
-  mutate(Coverage = ifelse(ACCESSION %in% low.coverage.samples, "Low", "High")) %>% 
-  ggplot(aes(x = AF.one, y = AF.two, col = Coverage)) + 
-    geom_point(size = 1.5, alpha = .75) +
-    geom_abline(intercept=0, col = "blue") + 
-    scale_color_manual(values = c("#080000","#b80000")) +
-    xlab("Allele Frequency Replicate One") +
-    ylab("Allele Frequency Replicate Two") +
-    theme_classic() +
-    theme(text=element_text(size=18,  family="Helvetica")) +
-    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
-    theme(panel.background = element_rect(fill = NA, color = "black")) +
-    theme(plot.title = element_text(hjust = 0.5)) 
-
-
-```
-
-
-```{r Common-sense filters, warning=FALSE, message = FALSE, fig.width=7, fig.height=5, fig.align='center'}
-
-excluded.variants.df = pysam.combined.snps.df %>% 
-  mutate(Coverage = ifelse(ACCESSION %in% low.coverage.samples, "Low", "High")) %>%
-  filter(Coverage == "Low") %>% 
-  filter(!(AF.one < 0.02 & AF.two < 0.02)) %>% 
-  filter(!(DP.one < 100 & DP.two < 100))
- 
-  
-included.variants.df = pysam.combined.snps.df %>% 
-  mutate(Coverage = ifelse(ACCESSION %in% low.coverage.samples, "Low", "High")) %>%
-  filter(Coverage == "High") %>% 
-  filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
-  filter(DP.one >= 100 & DP.two >= 100) 
- 
- 
-p1 = included.variants.df %>% 
-  ggplot(aes(x = AF.one, y = AF.two)) + 
-    geom_point(data = excluded.variants.df, aes(x = AF.one, y = AF.two), size = .5, col = "#b80000", alpha = 0.5) +
-    geom_point(size = 1.5) +
-    geom_hline(yintercept = 0.02, col = "blue", linetype = 2) + 
-    geom_vline(xintercept = 0.02, col = "blue", linetype = 2) + 
-    geom_abline(intercept=0, col = "blue") + 
-    scale_color_manual(values = c("#080000","#b80000")) +
-    xlab("Allele Frequency Replicate One") +
-    ylab("Allele Frequency Replicate Two") +
-    theme_classic() +
-    theme(text=element_text(size=18,  family="Helvetica")) +
-    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
-    theme(panel.background = element_rect(fill = NA, color = "black")) +
-    theme(plot.title = element_text(hjust = 0.5)) 
-
-p2 = included.variants.df %>% 
-  ggplot(aes(x = AF.one, y = AF.two)) + 
-    geom_point(data = excluded.variants.df, aes(x = AF.one, y = AF.two), size = .5, col = "#b80000", alpha = 0.5) +
-    geom_point(size = 1.5) +
-    geom_hline(yintercept = 0.02, col = "blue", linetype = 2) + 
-    geom_vline(xintercept = 0.02, col = "blue", linetype = 2) + 
-    geom_abline(intercept=0, col = "blue") + 
-    scale_x_continuous(limits = c(0, .15)) + 
-    scale_y_continuous(limits = c(0, .15)) + 
-    scale_color_manual(values = c("#080000","#b80000")) +
-    xlab("") +
-    ylab("") +
-    theme_minimal()
-
-p1 + 
-  annotation_custom(ggplotGrob(p2), xmin = .5, xmax = 1, ymin = 0, ymax = .4)
-```
-
-
-
-```{r Concordance Plot, warning=FALSE, message = FALSE, fig.width=15, fig.height=10, fig.align='center'}
-
-included.variants.df %>% 
-  ggplot(aes(x = AF.one, y = AF.two)) + 
-    geom_point(size = 2, alpha = .75) +
-    geom_abline(intercept=0, col = "blue") + 
-    facet_wrap(~ACCESSION) + 
-    scale_x_continuous(breaks = c(0.25, 0.5, 0.75)) +
-    xlab("Allele Frequency Replicate One") +
-    ylab("Allele Frequency Replicate Two") +
-    theme_classic() +
-    theme(text=element_text(size=18,  family="Helvetica")) +
-    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
-    theme(panel.background = element_rect(fill = NA, color = "black")) +
-    theme(plot.title = element_text(hjust = 0.5)) 
-
-
-```
-
 ```{r}
 
-included.variants.df %>% 
-  filter(ACCESSION == 10089 | ACCESSION == 10117) %>% 
-  filter(AF.two > .1) %>% 
-  filter(AF.one < .9) %>% view()
+concordance_plot_list = list()
+samples = sort(unique(pysam.combined.snps.df$ACCESSION))
+
+included.variants.df = pysam.combined.df %>% 
+  filter(DP.one >= 100 & DP.two >= 100) %>% 
+  filter(AF.one >= 0.02 & AF.two >= 0.02)
+  
+excluded.variants.df = pysam.combined.df %>% 
+  filter(DP.one < 100 | DP.two < 100) %>% 
+  filter(AF.one < 0.02 | AF.two < 0.02)
+
+for (i in 1:length(samples)) {
+
+  p1 = included.variants.df  %>% 
+    filter(ACCESSION == samples[i]) %>% 
+    ggplot(aes(x = AF.one, y = AF.two)) + 
+      geom_point(data = filter(excluded.variants.df, ACCESSION == samples[i]), aes(x = AF.one, y = AF.two), size = 1, col = "#b80000", alpha = 0.5) +
+      geom_point(size = 3, alpha = .75) +
+      geom_abline(intercept=0, col = "blue") + 
+      geom_hline(yintercept = 0.02, col = "blue", linetype = 2) + 
+      geom_vline(xintercept = 0.02, col = "blue", linetype = 2) + 
+      facet_wrap(~ACCESSION) +
+      scale_color_manual(values = c("#080000","#b80000")) +
+      scale_x_continuous(limits = c(0, 1)) + 
+      scale_y_continuous(limits = c(0, 1)) + 
+      xlab("") +
+      ylab("") +
+      theme_classic() +
+      theme(text=element_text(size= 22,  family="Helvetica")) +
+      theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+      theme(panel.background = element_rect(fill = NA, color = "black")) +
+      theme(plot.title = element_text(hjust = 0.5)) + 
+      coord_fixed(ratio = .75)
+  
+  p2 = included.variants.df  %>% 
+    filter(ACCESSION == samples[i]) %>% 
+    ggplot(aes(x = AF.one, y = AF.two)) + 
+      geom_point(data = filter(excluded.variants.df, ACCESSION == samples[i]), aes(x = AF.one, y = AF.two), size = 1.5, col = "#b80000", alpha = 0.5) +
+      geom_point(size = 2, alpha = .75) +
+      geom_abline(intercept=0, col = "blue") + 
+      geom_hline(yintercept = 0.02, col = "blue", linetype = 2) + 
+      geom_vline(xintercept = 0.02, col = "blue", linetype = 2) + 
+      scale_color_manual(values = c("#080000","#b80000")) +
+      scale_x_continuous(limits = c(0, .10)) + 
+      scale_y_continuous(limits = c(0, .10)) + 
+      xlab("") +
+      ylab("") +
+      theme_classic() +
+      theme(text=element_text(size = 12,  family="Helvetica")) +
+      theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+      theme(panel.background = element_rect(fill = NA, color = "black")) +
+      theme(plot.title = element_text(hjust = 0.5)) + 
+      theme(axis.text.x = element_blank()) + 
+      coord_fixed()
+  
+  
+  p3 = p1 + 
+    annotation_custom(ggplotGrob(p2), xmin = .25, xmax = 1.15, ymin = -.05, ymax = .4) 
+
+  concordance_plot_list[[i]] = p3
+  
+}
+
+final_plot = gridExtra::grid.arrange(arrangeGrob(grobs = concordance_plot_list, 
+                          left = textGrob("Allele Frequency Replicate Two", rot = 90, vjust = 1,
+                                          gp = gpar(col = "black", fontsize = 20)),
+                          bottom = textGrob("Allele Frequency Replicate One", hjust = .5,
+                                            gp = gpar(col = "black", fontsize = 20))))
+
+ggsave("../../results/pysam_variant_concordance.png", plot = final_plot, width = 25, height = 20, dpi = 300, units = "in")
 
 ```
+
 
