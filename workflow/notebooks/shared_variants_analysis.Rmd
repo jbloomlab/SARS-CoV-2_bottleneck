@@ -1,0 +1,182 @@
+---
+title: "shared_variants_analysis"
+author: "Will Hannon"
+date: "4/13/2021"
+output: html_document
+---
+
+```{r Setup, include=FALSE}
+require("knitr")
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r Required Packages, message=FALSE, warning=FALSE, echo=FALSE}
+
+## ==== Install Required Packages ==== ##
+
+## List of all packages needed -- non-BioManager installed
+packages = c("tidyverse", "ggpubr", "kableExtra", "gridExtra", 'grid', "GenomicRanges")
+## Check that packages are installed, if not, install them
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+## Packages loading
+invisible(lapply(c(packages), library, character.only = TRUE))
+
+```
+
+```{r Filepaths, include=FALSE}
+
+## ==== File paths input data ==== ##
+
+# Data from pysam/python script. It contains the % of each nucleotide
+pysam.data = "../../results/pileup/pysam-variants.csv"
+
+# Annotation of SARS-CoV-2 gene positions
+annotation.data = "../../config/sars_cov_2_annot.csv"
+
+# Samtools average depth
+average.depth.data = "../../results/coverage/merged.average.depth" 
+
+```
+
+```{r Process Data, warning=F, message=F}
+
+# Import pysam data 
+pysam.to.join.df = read_csv(pysam.data) %>% 
+  separate(ACCESSION, into = c("Accession", "Replicate"), sep = "_") %>% 
+  mutate(Replicate = as.factor(Replicate)) %>% 
+  select(!c("SNP","CONS"))
+
+# Combine the replicates 
+pysam.combined.df = full_join(
+  filter(pysam.to.join.df, Replicate == "1"),
+  filter(pysam.to.join.df, Replicate == "2"), 
+  by = c("Accession", "POS", "REF", "ALT", "EFFECT", "GENE", "CODON_POS", "AA_CHANGE"),
+  suffix = c(".one", ".two")
+  ) %>% 
+  select(!c("Replicate.one", "Replicate.two")) %>% 
+  mutate_each(list( ~ replace(., which(is.na(.)), 0))) %>% 
+  # Filter out the variants that don't meet the depth/af requirements 
+  filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
+  filter(DP.one >= 100 & DP.two >= 100)
+
+```
+
+```{r Remove low quality samples, warning=F, message=F}
+
+# Low quality samples 
+average.depth.df = read.table(average.depth.data, header = T) %>% 
+  separate(Accession, into = c("Accession", "Replicate")) %>% 
+  mutate(Run = paste0(Accession, "_", Replicate))
+
+low.coverage.samples = average.depth.df %>% filter(Percent < 80) %>% pull(Accession)
+low.coverage.runs = average.depth.df %>% filter(Percent < 80) %>% pull(Run)
+
+selected.samples.df = pysam.combined.df %>% 
+  # Remove the low coverage samples (> 80% covered by 200+ reads)
+  filter(!(Accession %in% low.coverage.samples)) %>% 
+  # Remove the samples with poor concordance
+  filter(!(Accession %in% c("10089", "10117", "10088")))
+
+```
+
+```{r Calculate AF and Depth, warning=F, message=F}
+
+# Average the replicates to get AF and DP
+pysam.average.df = selected.samples.df %>% 
+  mutate(AF = (AF.one + AF.two)/2) %>% 
+  mutate(DP = (DP.one + DP.two)/2)
+
+# Calculate the AF and DP using majority vote.
+# Which alleles are in both samples and which has more reads.
+
+# Inner join the SNPs by replicate
+pysam.inner.combined.df = inner_join(
+  filter(pysam.to.join.df, Replicate == "1"),
+  filter(pysam.to.join.df, Replicate == "2"), 
+  by = c("Accession", "POS", "REF", "ALT", "EFFECT", "GENE", "CODON_POS", "AA_CHANGE"),
+  suffix = c(".one", ".two")
+  ) %>% 
+  select(!c("Replicate.one", "Replicate.two")) %>%  
+  mutate(SNP = paste0(REF, POS, ALT)) %>% 
+  # Remove the low coverage samples (> 80% covered by 200+ reads)
+  filter(!(Accession %in% low.coverage.samples)) %>% 
+  # Remove the samples with poor concordance
+  filter(!(Accession %in% c("10089", "10117", "10088"))) %>% 
+  # Filter out the variants that don't meet the depth/af requirements 
+  filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
+  # Drastically speeds things up if you have a minimum depth
+  filter(DP.one >= 10 & DP.two >= 10)
+  
+
+
+pysam.inner.filtered = data.frame()
+for (i in 1:nrow(pysam.inner.combined.df)) {
+  row = pysam.inner.combined.df[i,]
+  if (row$DP.one > row$DP.two) {
+    DP = row$DP.one 
+    AF = row$AF.one 
+  } else {
+    DP = row$DP.two 
+    AF = row$AF.two 
+  }
+  row$AF = AF
+  row$DP = DP
+  pysam.inner.filtered = rbind(pysam.inner.filtered, row)
+}
+
+pysam.inner.filtered = pysam.inner.filtered %>% 
+  select(!ends_with(".one")) %>% 
+  select(!ends_with(".two")) 
+
+
+```
+
+```{r Per Pos Frequency , echo=F, message=F, warning=F, fig.width= 15, fig.height= 15, fig.align="center"}
+ 
+fixed.in.the.boat = pysam.inner.filtered %>% 
+  filter(DP >= 100) %>% 
+  group_by(SNP) %>% 
+  count() %>% 
+  filter(n == length(unique(pysam.inner.filtered$Accession))) %>% 
+  pull(SNP)
+
+pysam.inner.filtered %>% 
+  filter(DP >= 100) %>% 
+  filter(!(SNP %in% fixed.in.the.boat)) %>% 
+  select(Accession, SNP, AF) %>% 
+  pivot_wider(names_from = SNP, values_from = AF, values_fill = 0) %>% 
+  pivot_longer(!Accession, names_to = "SNP", values_to = "AF") %>%
+  mutate(POS = as.numeric(parse_number(SNP))) %>%
+  mutate(SNP = as.factor(SNP)) %>% 
+  ggplot(aes(x = Accession, y = AF)) +
+    annotate("rect", xmin = -Inf, xmax =  Inf, ymin = 0, ymax = 1, fill = "#737373") +
+    geom_area(aes(group = 1), fill = "#fc9403") +
+    geom_line(aes(group = 1), col = "black", size = 0.2) +
+    facet_wrap(~fct_reorder(SNP, POS, min), ncol = 4) +
+    geom_point(size = 3) +
+    xlab("Patient") +
+    ylab("Allele Frequency") + 
+    scale_color_manual(values = c("#bd0000", "#0013bd", "#bd00ba"), name = "Type") +
+    scale_y_continuous(breaks = c(0, 0.5, 1), limits = c(0,1) , expand = c(0,0)) +  
+    scale_x_discrete(expand = c(0,0), guide = guide_axis(angle = 90)) +    
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=24,  family="Helvetica")) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.background = element_rect(fill = NA, color = "black")) +
+    theme(axis.text.x = element_text(size = 14)) + 
+    theme(panel.spacing = unit(2, "lines")) + 
+    theme(axis.ticks.length=unit(.25, "cm"))
+
+
+ggsave("../../results/per_site_frequency.png", width = 15, height = 15, dpi = 300, units = "in")
+
+```
+
+
+
+

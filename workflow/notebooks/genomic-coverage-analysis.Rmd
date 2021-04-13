@@ -117,7 +117,7 @@ ORF10 = annotation.df %>% dplyr::filter(gene == "ORF10")
 depth.of.coverage.df %>% 
   mutate(`Low Coverage` = ifelse(Run %in% low.coverage.runs, "Yes", "No"),
          POS =(Start+Stop)/2) %>% 
-  filter(Start < 29850) %>% 
+  filter(Start < 29850) %>%
   ggplot(aes(x = POS, y = Depth, group = Run, col = `Low Coverage`))+
     geom_line() + 
     scale_color_manual(values = c("#080000","#b80000")) +
