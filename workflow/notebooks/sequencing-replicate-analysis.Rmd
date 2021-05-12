@@ -76,23 +76,6 @@ pysam.combined.df = full_join(
   mutate_each(list( ~ replace(., which(is.na(.)), 0))) %>% 
   mutate(Coverage = ifelse(ACCESSION %in% low.coverage.samples, "Low", "High"))
 
-# Varinat data from lofreq and varscan
-variant.df = read_csv(variant.data) %>% 
-  filter(Library == 1) %>% 
-  filter(Caller == "lofreq") %>% 
-  rename(ACCESSION = "spID", REPLICATE = "Replicate") %>% 
-  select(ACCESSION, REPLICATE, POS, DP, REF, ALT, AF) %>% 
-  mutate(SNP = TRUE, CONS = ifelse(AF >= 0.5, TRUE, FALSE))
-
-variant.combined.snps.df = full_join(
-  filter(variant.df, REPLICATE == "1"),
-  filter(variant.df, REPLICATE == "2"), 
-  by = c("ACCESSION", "POS", "REF", "ALT"),
-  suffix = c(".one", ".two")
-  ) %>% 
-  select(!c("REPLICATE.one", "REPLICATE.two", "SNP.one", "SNP.two", "CONS.one", "CONS.two")) %>% 
-  mutate_each(list( ~ replace(., which(is.na(.)), 0)))
-
 
 ```
 
@@ -103,7 +86,7 @@ Below is a plot of the concordance of allele frequency between the sequencing re
 ```{r}
 
 concordance_plot_list = list()
-samples = sort(unique(pysam.combined.snps.df$ACCESSION))
+samples = sort(unique(pysam.combined.df$ACCESSION))
 
 included.variants.df = pysam.combined.df %>% 
   filter(DP.one >= 100 & DP.two >= 100) %>% 
