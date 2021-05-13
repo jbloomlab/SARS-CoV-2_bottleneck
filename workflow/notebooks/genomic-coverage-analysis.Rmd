@@ -84,6 +84,14 @@ average.depth.df %>%
 
 ggsave("../../config/figures/supplemental-1-A.svg", device = svg(), width = 11, height = 5)
 
+```
+
+Coverage pattern is pretty erratic since this isn't amplicon sequencing. Red samples are colored as those that don't have more than 80% of the genome covered by more than 200 reads. 
+
+
+These are the samples that failed our quality control. The coverage was less than 200X in 20% of the genome.
+```{r Failed QC}
+
 # Low coverage samples
 low.coverage.samples = average.depth.df %>% filter(Percent < 80) %>% pull(Accession)
 low.coverage.runs = average.depth.df %>% filter(Percent < 80) %>% pull(Run)
@@ -92,10 +100,9 @@ print(paste0("There are ", length(low.coverage.samples), " low coverage samples:
 print(low.coverage.samples)
 
 
-
 ```
 
-Coverage pattern is pretty erratic since this isn't amplicon sequencing. Red samples are colored as those that don't have more than 80% of the genome covered by more than 200 reads. 
+This leads to the exclusion of 10 people: 10136, 10027, 10091, 10106, 10138, 10110, 10107, 10028, 10114, and 10039
 
 ```{r Coverage Pattern, message=FALSE, warning=FALSE, fig.width=15, fig.height=6, fig.align='center'}
 
@@ -183,29 +190,75 @@ depth.of.coverage.df %>%
 
 ```
 
+This will be the second supplemental figure. It's good for both showing the pattern of coverage over the genome, and the samples that failed our filters. 
 
 ```{r Coverage Pattern Facet, message=FALSE, warning=FALSE, fig.width=20, fig.height=10, fig.align='center'}
+
+# Generate positions for lables 
+label = annotation.df %>% 
+  mutate(POS = (start+end)/2) %>% 
+  mutate(Depth = -(100/2)) %>% 
+  select(gene, POS, Depth) 
 
 # Excluding the last 100 or so nucleotides which is a poly-A run. 
 depth.of.coverage.df %>% 
   mutate(`Low Coverage` = ifelse(Run %in% low.coverage.runs, "Yes", "No")) %>% 
+  mutate(Accession = paste0("Crewmember-", Accession)) %>% 
   filter(Start < 29850) %>% 
-  mutate(Depth = ifelse(Depth > 500, 500, Depth)) %>% 
+  mutate(Depth = ifelse(Depth > 1000, 1000, Depth)) %>% 
   ggplot(aes(x = (Start+Stop)/2, y = Depth, group = Run, col = `Low Coverage`))+
     geom_line() + 
     geom_hline(yintercept = 200, col = "blue", linetype = 2) + 
-    facet_wrap(~Accession) + 
+    facet_wrap(~Accession, ncol = 3) + 
     scale_color_manual(values = c("#080000","#b80000")) +
-    xlab("Position") +
+    xlab("Genomic Position") +
     ylab("Depth") +
+    scale_x_continuous(breaks=c(0,5000,10000,15000,20000,25000,30000)) +
+    annotate("rect", xmin = 0, xmax = ORF1ab[[2]]-1, ymin = -100, ymax = -.01 ,
+             alpha = .2, fill = "grey", col = "black", size = .1) +
+    annotate("rect", xmin = ORF1ab[[2]], xmax = ORF1ab[[3]], ymin = -100, ymax = -.01 ,
+               alpha = .2, fill = "dodgerblue2", col = "black", size = .1) +
+    annotate(geom = "text", x = label[[2]][1], y = label[[3]][1], label = label[[1]][1], family = "mono") +
+    annotate("rect", xmin = Spike[[2]], xmax = Spike[[3]], ymin =  -100, ymax = -.01 ,
+             alpha = .2, fill = "yellow3", col = "black", size = .1) +
+    annotate(geom = "text", x = label[[2]][2], y = label[[3]][2], label = label[[1]][2], family = "mono") +
+    annotate("rect", xmin = ORF3a[[2]], xmax = ORF3a[[3]], ymin =  -100, ymax = -.01 ,
+             alpha = .2, fill = "#FF7F00", col = "black", size = .1) +
+    #annotate(geom = "text", x = label[[2]][3], y = label[[3]][3], label = "3a", family = "mono") +
+    annotate("rect", xmin = Envelope[[2]], xmax = Envelope[[3]], ymin =  -100, ymax = -.01 ,
+             alpha = .2, fill =  "#6A3D9A", col = "black", size = .1) +
+    #annotate(geom = "text", x = label[[2]][4], y = label[[3]][4], label = "E", family = "mono") +
+    annotate("rect", xmin = Membrane[[2]], xmax = Membrane[[3]], ymin = -100, ymax = -.01 ,
+             alpha = .2, fill =  "green4", col = "black", size = .1) +
+    #annotate(geom = "text", x = label[[2]][5], y = label[[3]][5], label = "M", family = "mono") +
+    annotate("rect", xmin = ORF6[[2]], xmax = ORF6[[3]], ymin = -100, ymax = -.01 ,
+             alpha = .2, fill = "#E31A1C", col = "black", size = .1) +
+    #annotate(geom = "text", x = label[[2]][6], y = label[[3]][6], label = "6", family = "mono") +
+    annotate("rect", xmin = ORF7a[[2]], xmax = ORF7a[[3]], ymin =  -100, ymax = -.01 ,
+             alpha = .2, fill = "#FB9A99", col = "black", size = .1) +
+    #annotate(geom = "text", x = label[[2]][7], y = label[[3]][7], label = "7a", family = "mono") +
+    annotate("rect", xmin = ORF8[[2]], xmax = ORF8[[3]], ymin = -100, ymax = -.01 ,
+             alpha = .2, fill = "orchid1", col = "black", size = .1) +
+    #annotate(geom = "text", x = label[[2]][8], y = label[[3]][8], label = "8", family = "mono") +
+    annotate("rect", xmin = Nucleocapsid[[2]], xmax = Nucleocapsid[[3]], ymin =  -100, ymax = -.01 ,
+             alpha = .2, fill = "maroon", col = "black", size = .1) +
+    #annotate(geom = "text", x = label[[2]][9], y = label[[3]][9], label = "N", family = "mono") +
+    annotate("rect", xmin = ORF10[[2]], xmax = ORF10[[3]], ymin =  -100, ymax = -.01 ,
+             alpha = .2, fill =  "skyblue2", col = "black", size = .1) +
+    annotate("rect", xmin = ORF10[[3]]+1, xmax = 29903, ymin = -100, ymax = -.01 ,
+             alpha = .2, fill = "grey", col = "black", size = .1) +
+    annotate(geom = "text", x = -200, y = label[[3]][1], label = "5'", family = "mono") +
+    annotate(geom = "text", x = 30200, y = label[[3]][1], label = "3'", family = "mono") +
     theme_classic() +
     theme(legend.position="bottom", legend.box = "horizontal") +
     theme(legend.box.background = element_rect(colour = "black")) +
     theme(text=element_text(size=18)) +
     theme(plot.title = element_text(hjust = 0.5)) +
     theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
-    theme(legend.position="none") 
+    theme(legend.position="none") +
+    theme(axis.text.x=element_text(angle=25, hjust=1)) 
     
+ggsave("../../config/figures/supplemental-2.svg", device = svg(), width = 20, height = 20)
 
 ```
 
