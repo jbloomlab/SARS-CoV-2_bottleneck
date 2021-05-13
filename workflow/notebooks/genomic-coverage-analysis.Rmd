@@ -60,23 +60,29 @@ depth.of.coverage.df = read.table(depth.of.coverage.data, header = T) %>%
 experiment.colors = c("#000000", "#7a7a7a")
 ```
 
+This was the first exclusion criteria for samples in the experiment. They had to have at least 200 reads covering 80% of the genomes. Samples with less completeness were excluded. This should be one of the first supplemental figures in the paper. 
+
 ```{r Percent Covered, message=FALSE, warning=FALSE, fig.width=11, fig.height=5, fig.align='center'}
 
 # What is the percent of the genome covered by more than 200 reads?
 average.depth.df %>% 
+  mutate(Accession = paste0("Crewmember-", Accession)) %>% 
   ggplot(aes(x = reorder(Accession, -Percent), y = Percent/100, fill = Replicate)) + 
     geom_bar(stat = "identity", position = position_dodge()) + 
     scale_fill_manual(values = experiment.colors, name = "Replicate") +
     scale_y_continuous(labels = percent) + 
     xlab("Sample") +
-    ylab("More than 200X coverage") +
+    ylab("Completeness") +
     theme_classic() +
     theme(legend.position="bottom", legend.box = "horizontal") +
     theme(legend.box.background = element_rect(colour = "black")) +
     theme(text=element_text(size=18)) +
     theme(plot.title = element_text(hjust = 0.5)) +
     theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
-    theme(axis.text.x=element_text(angle=45, hjust=1))
+    theme(axis.text.x=element_text(angle=25, hjust=1)) +
+    theme(plot.margin = unit(c(1.5,1.5,1.5,1.5), "cm"))
+
+ggsave("../../config/figures/supplemental-1-A.svg", device = svg(), width = 11, height = 5)
 
 # Low coverage samples
 low.coverage.samples = average.depth.df %>% filter(Percent < 80) %>% pull(Accession)
@@ -84,6 +90,8 @@ low.coverage.runs = average.depth.df %>% filter(Percent < 80) %>% pull(Run)
 
 print(paste0("There are ", length(low.coverage.samples), " low coverage samples: "))
 print(low.coverage.samples)
+
+
 
 ```
 

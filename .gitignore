@@ -142,4 +142,4 @@ results/
 *.Rhistory
 **.RDS
 config/gisaid
-
+config/figures
