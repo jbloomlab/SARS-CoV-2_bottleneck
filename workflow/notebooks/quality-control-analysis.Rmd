@@ -115,6 +115,8 @@ ggplot(donut.df, aes(ymax=ymax, ymin=ymin, xmax=4, xmin=3, fill=Category)) +
   theme_void(35) +
   theme(legend.position = "none")
 
+ggsave("../../config/figures/figure-1-B.svg", device = svg(), width = 5, height = 5)
+
 ```
 
 The following plot is the size of each library (how many mapped SARS-CoV-2 reads are there per patient per replicate) both before and after merging the separate sequencing attempts. The facet labled `1` shows each library from the initial round of sequencing. The facet labled `2` shows the extra sequencing we requested from Pavitra to even out the coverage between replicates. It appears the have made most samples more evenly covered, with the notable exception of patient `10027`.
