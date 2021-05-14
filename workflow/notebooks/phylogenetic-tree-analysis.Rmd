@@ -69,6 +69,7 @@ info = as.data.frame(read.csv(metadata.data) %>%
  
 ggtree(GISAID.tree, size = 1.5) %<+% info +
   geom_tiplab() +
+  geom_label(aes(x=branch, label=node)) +
   geom_tippoint(aes(color = clade), size=2) +
   geom_tippoint(aes(subset=(study=="internal")), size = 3, color = 'red') + 
   scale_color_manual(values=c("pink", "green", "blue", "purple", "black", "orange"))  + 
@@ -81,6 +82,19 @@ ggtree(GISAID.tree, size = 1.5) %<+% info +
 #   filter(gisaid_epi_isl %in% to.investigate) %>% 
 #   select(strain, gisaid_epi_isl, date, authors)
 
+
+```
+
+```{r GISAID phylogeny, fig.width=6, fig.height=6, fig.align='center'}
+ 
+ggtree(GISAID.tree, size = 1.5, layout="circular") %<+% info +
+  geom_tippoint(aes(color = clade), size=2) +
+  geom_tippoint(aes(subset=(study=="internal")), size = 3, color = 'red') + 
+  scale_color_manual(values=c("pink", "green", "blue", "purple", "black", "orange"))  + 
+  geom_hilight(node = 332, fill = "gold") +
+  theme(legend.position = 'none')
+
+ggsave(filename = "../../config/figures/figure-1-C.svg", width = 8, height = 8)
 
 ```
 
