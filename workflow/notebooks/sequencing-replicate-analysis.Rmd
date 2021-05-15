@@ -48,14 +48,14 @@ average.depth.data = "../../results/coverage/merged.average.depth"
 
 ```{r Format data, include=FALSE, warning=FALSE, message=FALSE}
 
-# Low quality samples 
+# Low quality samples - get the accessions for the samples that failed basic quality control. 
+# Presently, this anything that has 20% of the genome covered by less than 200 reads. 
 average.depth.df = read.table(average.depth.data, header = T) %>% 
   separate(Accession, into = c("Accession", "Replicate")) %>% 
   mutate(Run = paste0(Accession, Replicate))
 
 low.coverage.samples = average.depth.df %>% filter(Percent < 80) %>% pull(Accession)
 low.coverage.runs = average.depth.df %>% filter(Percent < 80) %>% pull(Run)
-
 
 # Import the data splitting the accession ID into the Accession and the Replicate
 pysam.df = read_csv(pysam.data) %>% 
@@ -81,12 +81,13 @@ pysam.combined.df = full_join(
 
 ## Concordance
 
-Below is a plot of the concordance of allele frequency between the sequencing replicates of all libraries. This doesn't include any filters for depth of sequencing. I colored any runs which had a replicate less than 80% covered by more than 200 reads red. This doesn't account for all of the discrepencies in allele frequency.   
+Below is a plot of the concordance of allele frequency between the sequencing replicates of all libraries. This doesn't include any filters for depth of sequencing.
 
 ```{r}
 
 concordance_plot_list = list()
-samples = sort(unique(pysam.combined.df$ACCESSION))
+
+samples = sort(unique(pysam.combined.df$ACCESSION))[which(!sort(unique(pysam.combined.df$ACCESSION)) %in% low.coverage.samples)]
 
 included.variants.df = pysam.combined.df %>% 
   filter(DP.one >= 100 & DP.two >= 100) %>% 
@@ -102,7 +103,7 @@ for (i in 1:length(samples)) {
     filter(ACCESSION == samples[i]) %>% 
     ggplot(aes(x = AF.one, y = AF.two)) + 
       geom_point(data = filter(excluded.variants.df, ACCESSION == samples[i]), aes(x = AF.one, y = AF.two), size = 1, col = "#b80000", alpha = 0.5) +
-      geom_point(size = 3, alpha = .75) +
+      geom_point(size = 4, alpha = .75) +
       geom_abline(intercept=0, col = "blue") + 
       geom_hline(yintercept = 0.02, col = "blue", linetype = 2) + 
       geom_vline(xintercept = 0.02, col = "blue", linetype = 2) + 
@@ -113,17 +114,17 @@ for (i in 1:length(samples)) {
       xlab("") +
       ylab("") +
       theme_classic() +
-      theme(text=element_text(size= 22,  family="Helvetica")) +
+      theme(text=element_text(size= 30,  family="Helvetica")) +
       theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
       theme(panel.background = element_rect(fill = NA, color = "black")) +
       theme(plot.title = element_text(hjust = 0.5)) + 
-      coord_fixed(ratio = .75)
+      coord_fixed()
   
   p2 = included.variants.df  %>% 
     filter(ACCESSION == samples[i]) %>% 
     ggplot(aes(x = AF.one, y = AF.two)) + 
       geom_point(data = filter(excluded.variants.df, ACCESSION == samples[i]), aes(x = AF.one, y = AF.two), size = 1.5, col = "#b80000", alpha = 0.5) +
-      geom_point(size = 2, alpha = .75) +
+      geom_point(size = 2.5, alpha = .75) +
       geom_abline(intercept=0, col = "blue") + 
       geom_hline(yintercept = 0.02, col = "blue", linetype = 2) + 
       geom_vline(xintercept = 0.02, col = "blue", linetype = 2) + 
@@ -133,7 +134,7 @@ for (i in 1:length(samples)) {
       xlab("") +
       ylab("") +
       theme_classic() +
-      theme(text=element_text(size = 12,  family="Helvetica")) +
+      theme(text=element_text(size = 18,  family="Helvetica")) +
       theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
       theme(panel.background = element_rect(fill = NA, color = "black")) +
       theme(plot.title = element_text(hjust = 0.5)) + 
@@ -150,11 +151,11 @@ for (i in 1:length(samples)) {
 
 final_plot = gridExtra::grid.arrange(arrangeGrob(grobs = concordance_plot_list, 
                           left = textGrob("Allele Frequency Replicate Two", rot = 90, vjust = 1,
-                                          gp = gpar(col = "black", fontsize = 20)),
+                                          gp = gpar(col = "black", fontsize = 35)),
                           bottom = textGrob("Allele Frequency Replicate One", hjust = .5,
-                                            gp = gpar(col = "black", fontsize = 20))))
+                                            gp = gpar(col = "black", fontsize = 35))))
 
-ggsave("../../results/pysam_variant_concordance.png", plot = final_plot, width = 25, height = 20, dpi = 300, units = "in")
+ggsave("../../config/figures/figure-2.png", plot = final_plot, width = 25, height = 20, dpi = 300, units = "in")
 
 ```
 
