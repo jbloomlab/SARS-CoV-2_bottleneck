@@ -8,8 +8,8 @@
 rule samtools_depth:
     """ Calculate the depth over each position filtering by the phred base score. 
     """
-    input: bam=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.marked.merged.bam"),
-           bai=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.marked.merged.bam.bai")
+    input: bam=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.merged.bam"),
+           bai=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.merged.bam.bai")
     output: join(config['coverage_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.depth")
     params: score=config['BQ'],
             binsize=config['bin_size']
@@ -38,8 +38,8 @@ rule merge_depth:
         """
 
 rule average_depth:
-    input: bam=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.marked.merged.bam"),
-           bai=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.marked.merged.bam.bai")
+    input: bam=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.merged.bam"),
+           bai=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.merged.bam.bai")
     output: join(config['coverage_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.average.depth")
     params: score=config['BQ']
     conda: '../envs/samtools.yml'
@@ -66,7 +66,7 @@ rule merge_average_depth:
         """
 
 rule coverage_stats: 
-    input: expand(join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.marked.merged.bam"), accession=samples, aligner=['BWA'])
+    input: expand(join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.merged.bam"), accession=samples, aligner=['BWA'])
     output: join(config['coverage_dir'], "coverage.stats")
     params: score=config['BQ']
     conda: '../envs/samtools.yml'

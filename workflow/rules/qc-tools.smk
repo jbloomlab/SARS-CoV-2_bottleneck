@@ -29,7 +29,7 @@ rule samtools_unmerged_stats:
     """ 
     Calculate basic statistics about the unmerged BAM files.
     """
-    input: join(config['align_dir'], "{aligner}", "{accession}-{library}", "{accession}-{library}.{aligner}.sorted.marked.bam"),
+    input: join(config['align_dir'], "{aligner}", "{accession}-{library}", "{accession}-{library}.{aligner}.sorted.bam"),
     output: join(config['qc_dir'], "{accession}-{library}", "{aligner}", "{accession}-{library}.{aligner}.bam.stats"),
     conda: '../envs/samtools.yml'
     shell: 
@@ -42,7 +42,7 @@ rule samtools_merged_stats:
     """ 
     Calculate basic statistics about the merged BAM files.
     """
-    input: join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.marked.merged.bam")
+    input: join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.merged.bam")
     output: join(config['qc_dir'], "{accession}", "{aligner}", "{accession}.{aligner}.merged.bam.stats")
     conda: '../envs/samtools.yml'
     shell: 
