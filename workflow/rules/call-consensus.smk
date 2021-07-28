@@ -6,9 +6,9 @@
 #
 
 rule make_consensus:
-    input: bam=expand(join(config['align_dir'], "{aligner}", "{spid}_{replicate}", "{spid}_{replicate}.{aligner}.sorted.merged.bam"), replicate = [1,2]), 
-           bai=expand(join(config['align_dir'], "{aligner}", "{spid}_{replicate}", "{spid}_{replicate}.{aligner}.sorted.merged.bam.bai"), replicate = [1,2]), 
-           genome = lambda wildcards: get_genome(wildcards) 
+    input: bam=expand(join(config['align_dir'], "{{aligner}}", "{{spid}}_{replicate}", "{{spid}}_{replicate}.{{aligner}}.sorted.merged.bam"), replicate = [1,2]), 
+           bai=expand(join(config['align_dir'], "{{aligner}}", "{{spid}}_{replicate}", "{{spid}}_{replicate}.{{aligner}}.sorted.merged.bam.bai"), replicate = [1,2]), 
+           genome = join(config['index_dir']['samtools'], "SARS2.fa") 
     output: join(config['consensus_dir'], "{aligner}", "{spid}", "{spid}.{aligner}.consensus.fa")
     conda: "../envs/pysam.yml"
     script: "../scripts/make-consensus-sequence.py"

@@ -34,6 +34,7 @@ rule all:
         join(config['coverage_dir'], "coverage.stats"),
         join(config['coverage_dir'], "merged.average.depth"),
         join(config['coverage_dir'], "merged.depth"),
+        join(config['consensus_dir'], "aligned_consensus.fa")
 
 rule clean:
     shell:
