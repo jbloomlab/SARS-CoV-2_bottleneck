@@ -144,6 +144,7 @@ fixed.in.the.boat = pysam.inner.filtered %>%
   pull(SNP)
 
 pysam.inner.filtered %>% 
+  mutate(Accession = paste0("Crewmember-", Accession)) %>% 
   filter(DP >= 100) %>% 
   filter(!(SNP %in% fixed.in.the.boat)) %>% 
   select(Accession, SNP, AF) %>% 
@@ -155,7 +156,7 @@ pysam.inner.filtered %>%
     annotate("rect", xmin = -Inf, xmax =  Inf, ymin = 0, ymax = 1, fill = "#737373") +
     geom_area(aes(group = 1), fill = "#fc9403") +
     geom_line(aes(group = 1), col = "black", size = 0.2) +
-    facet_wrap(~fct_reorder(SNP, POS, min), ncol = 4) +
+    facet_wrap(~fct_reorder(SNP, POS, min), ncol = 5) +
     geom_point(size = 3) +
     xlab("Patient") +
     ylab("Allele Frequency") + 
@@ -168,12 +169,12 @@ pysam.inner.filtered %>%
     theme(text=element_text(size=24,  family="Helvetica")) +
     theme(plot.title = element_text(hjust = 0.5)) +
     theme(panel.background = element_rect(fill = NA, color = "black")) +
-    theme(axis.text.x = element_text(size = 14)) + 
+    theme(axis.text.x = element_text(size = 16)) + 
     theme(panel.spacing = unit(2, "lines")) + 
     theme(axis.ticks.length=unit(.25, "cm"))
 
 
-ggsave("../../results/per_site_frequency.png", width = 15, height = 15, dpi = 300, units = "in")
+ggsave("../../config/figures/figure-4.png", width = 15, height = 15, dpi = 300, units = "in")
 
 ```
 
