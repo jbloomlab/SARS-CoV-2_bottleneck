@@ -9,13 +9,40 @@ rule samtools_mpileup:
     """ 
     Calculate the pileup of bases at every position in virus genome.
     """
-    input: bam=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.marked.merged.bam"),
-           bai=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.marked.merged.bam.bai"),        
+    input: bam=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.merged.bam"),
+           bai=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.merged.bam.bai"),        
            genome=get_genome
     output: join(config['pileup_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.mpileup.txt")
-    params: score=config['BQ']
+    params: score=config['BQ'],
+            maxdepth=config['maxdepth']
     conda: '../envs/samtools.yml'
-    shell: "samtools mpileup -d 0 -E --excl-flags UNMAP,SECONDARY,QCFAIL -q {params.score} -Q {params.score} -f {input.genome} {input.bam} -O -s --reverse-del -a -o {output}"
+    shell: "samtools mpileup -d {params.maxdepth} -E --excl-flags UNMAP,SECONDARY,QCFAIL -q {params.score} -Q {params.score} -f {input.genome} {input.bam} -O -s --reverse-del -a -o {output}"
+
+
+rule ivar_calling:
+    """
+    Variant calling with iVar. Benchmarked for viruses, seems like 
+    a good alternative to Varscan.
+    """
+    input:
+           bam=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.merged.bam"),
+           bai=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.merged.bam.bai"),        
+           gff=join(config['gff_dir'], "MeVChiTok.gff"),
+           genome=get_genome
+    output: txt=join(config['variant_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.ivar.ann.txt"),
+            tsv=temp(join(config['variant_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.ivar.ann.tsv"))
+    params: 
+        quality=config['BQ'],
+        maxdepth=config['maxdepth'],
+        minimum_coverage=config['min_coverage'],
+        prefix=join(config['variant_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.ivar.ann")
+    conda: '../envs/variant.yml'
+    threads: config['threads']['max_cpu']
+    shell: 
+        """
+        samtools mpileup -aa -A --excl-flags UNMAP,SECONDARY,QCFAIL -d {params.maxdepth} -B -Q 0 {input.bam} | ivar variants -p {params.prefix} -q {params.quality} -t 0.01 -r {input.genome} -g {input.gff}
+        cp {output.tsv} {output.txt}
+        """
 
 
 rule varscan_calling:
@@ -37,53 +64,38 @@ rule varscan_calling:
     conda: '../envs/variant.yml'    
     shell:
         """
-        # Call SNPs using the mpileup file
+        # Call SNPs and InDels using the mpileup file
         java -jar {input.varscan} \
-            mpileup2snp {input.pileup} \
+            mpileup2cns {input.pileup} \
+            --variants 1 \
             --output-vcf 1 \
             --min-coverage {params.minimum_coverage} \
             --min-reads2 {params.minumum_supporting_reads} \
             --min-avg-qual {params.minimum_base_quality} \
             --strand-filter {params.strand_filter} \
-            --min-var-freq {params.minimum_variant_freq} > {output.tmp_snp}
-
-        # Call InDels using mpileup file
-        java -jar {input.varscan} \
-            mpileup2indel {input.pileup}  \
-            --output-vcf 1 \
-            --min-coverage {params.minimum_coverage} \
-            --min-reads2 {params.minumum_supporting_reads} \
-            --min-avg-qual {params.minimum_base_quality} \
-            --min-var-freq {params.minimum_variant_freq} > {output.tmp_indel}
-
-        bcftools view {output.tmp_snp} -Oz -o {output.tmp_snp}.gz;tabix -f {output.tmp_snp}.gz
-
-        bcftools view {output.tmp_indel} -Oz -o {output.tmp_indel}.gz;tabix -f {output.tmp_indel}.gz
-        
-        bcftools concat -a -o {output.variants} -O v {output.tmp_snp}.gz {output.tmp_indel}.gz
-
+            --min-var-freq {params.minimum_variant_freq} > {output.variants}
         """
+
 
 
 rule lofreq_calling:
     """ Call variants (SNP and indels) with the reference. Using only defaut filtering.
     """
-    input: bam=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.marked.merged.bam"),
-           bai=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.marked.merged.bam.bai"),        
+    input: bam=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.merged.bam"),
+           bai=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.merged.bam.bai"),        
            genome=get_genome
     output: join(config['variant_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.lofreq.vcf")
     params: 
-        maxdepth=1000000,
-        minimum_coverage=config['min_coverage']
+        maxdepth=config['maxdepth']
     conda: '../envs/variant.yml'
     threads: config['threads']['max_cpu']
     shell:
         """
         if [[ $(samtools view {input.bam} | head -n 5) ]]; then
             lofreq call-parallel --pp-threads {threads} \
-                -d {params.maxdepth} \
                 -f {input.genome} \
-                --call-indels \
+                -N \
+                -d {params.maxdepth} \
                 {input.bam} \
                 -o {output}
         else
