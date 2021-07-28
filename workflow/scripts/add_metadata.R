@@ -114,6 +114,23 @@ if (!empty){
       mutate(Aligner = sample.aligner)
     
     sample.df$AF = as.numeric(sample.df$AF) / 100
+    
+  } else if (sample.caller == "ivar"){
+    
+    # read in vcf table
+    sample.df = read_tsv(vcf.filepath) %>%
+      mutate(Effect = if_else(REF_AA == ALT_AA, "Synonymous", "Missense"),
+             AA_Change = paste0(REF_AA, "-", ALT_AA),
+             Gene_Name = NA) %>% 
+      select(POS, REF,  ALT,
+             AF="ALT_FREQ",  DP="TOTAL_DP",
+             Effect, Gene_Name, AA_Change) %>% 
+      # add sample ID
+      mutate(Accession = sample.name) %>%
+      mutate(Caller = sample.caller) %>% 
+      mutate(Aligner = sample.aligner) %>% 
+      distinct()
+    
   }
   
   ## ==== Join the variant data with the metadata by 'Run' id ==== ##
@@ -123,16 +140,14 @@ if (!empty){
   
   # Write out to a file
   write.csv(sample.df, file = snakemake@output[[1]], row.names=FALSE, sep="\t")
-
-}else{
+  
+} else{
   # Write an empty output if file is empty
   cat(NULL,file=snakemake@output[[1]])
 }
 
 
 ## ==== END ==== ##
-
-
 
 
 
