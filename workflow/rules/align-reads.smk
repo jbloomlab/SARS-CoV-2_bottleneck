@@ -28,30 +28,12 @@ rule bwa_align:
         """
 
 
-rule mark_duplicates:
-    """ 
-    This rule uses `Picard` to mark/remove probable PCR duplicates.
-    Only removes duplicates if `true` is specified in the config file, 
-    otherwise this tool only marks them.
-    """
-    input: bam=join(config['align_dir'], "{aligner}", "{accession}-{library}", "{accession}-{library}.{aligner}.sorted.bam")
-    output: bam=join(config['align_dir'], "{aligner}", "{accession}-{library}", "{accession}-{library}.{aligner}.sorted.marked.bam"),
-            metrics=join(config['qc_dir'], "{accession}-{library}", "Picard", "{accession}-{library}.{aligner}.metrics.txt")
-    params: remove_duplicates=config['remove_duplicates']
-    conda: '../envs/picard.yml'
-    shell:
-        """
-        picard MarkDuplicates REMOVE_DUPLICATES={params.remove_duplicates} INPUT={input.bam} \
-            OUTPUT={output.bam} METRICS_FILE={output.metrics} 
-        """
-
-
 rule merge_bam:
     """
     Merge the BAM files from the same sample but different runs. 
     """
     input: get_avaliable_bams
-    output: join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.marked.merged.bam")
+    output: join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.merged.bam")
     conda: '../envs/samtools.yml'
     shell: "samtools merge {output} {input}" 
 
@@ -59,11 +41,10 @@ rule merge_bam:
 rule index_bam:
     """ Index mapped, sorted, merged, and marked bam files. 
     """
-    input: join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.marked.merged.bam")
-    output: join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.marked.merged.bam.bai")
+    input: join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.merged.bam")
+    output: join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.merged.bam.bai")
     conda: '../envs/samtools.yml'
     shell: "samtools index {input}"
-
 
 
 
