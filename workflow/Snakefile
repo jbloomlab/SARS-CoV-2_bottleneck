@@ -27,16 +27,14 @@ samples = list(set(pd.read_csv(config['samples']['file'])['Run']))
 
 rule all:
     input: 
-        join(config['consensus_dir'], "merged.consenus.fa.iqtree"),
         join(config['pileup_dir'], "pysam-variants.csv"),
-        join(config['qc_dir'], 'formatted_multiqc_data.csv'),  
         join(config['variant_dir'], "variants.csv"),
+        join(config['qc_dir'], 'formatted_multiqc_data.csv'),  
+        join(config['qc_dir'], "BBduk_filtered_reads.csv"),
         join(config['coverage_dir'], "coverage.stats"),
         join(config['coverage_dir'], "merged.average.depth"),
         join(config['coverage_dir'], "merged.depth"),
-        join(config['qc_dir'], "BBduk_filtered_reads.csv"),
-        join(config['gisaid_dir'], "smilar_to_boat_genomes.csv"),
-        join(config['gisaid_dir'], "phylogeny.aligned.fasta.treefile")
+
 rule clean:
     shell:
         """
