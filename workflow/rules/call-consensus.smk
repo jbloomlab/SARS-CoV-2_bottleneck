@@ -6,10 +6,10 @@
 #
 
 rule make_consensus:
-    input: bam=expand(join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{spid}_{replicate}.sorted.merged.bam"), replicate = [1,2]), 
-           bai=expand(join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{spid}_{replicate}.sorted.merged.bam.bai"), replicate = [1,2]), 
+    input: bam=expand(join(config['align_dir'], "{aligner}", "{spid}_{replicate}", "{spid}_{replicate}.{aligner}.sorted.merged.bam"), replicate = [1,2]), 
+           bai=expand(join(config['align_dir'], "{aligner}", "{spid}_{replicate}", "{spid}_{replicate}.{aligner}.sorted.merged.bam.bai"), replicate = [1,2]), 
            genome = lambda wildcards: get_genome(wildcards) 
-    output: join(config['consensus_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.consensus.fa")
+    output: join(config['consensus_dir'], "{aligner}", "{spid}", "{spid}.{aligner}.consensus.fa")
     conda: "../envs/pysam.yml"
     script: "../scripts/make-consensus-sequence.py"
 
@@ -19,7 +19,7 @@ rule join_consensus:
     Join the consensus sequences from bcftools 
     for multiple sequence alignment with MAFFT.
     """
-    input: expand(join(config['consensus_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.consensus.fa"), accession=list(set(pd.read_csv(config['samples']['file'])['Run'])), aligner=['BWA'])
+    input: expand(join(config['consensus_dir'], "{aligner}", "{spid}", "{spid}.{aligner}.consensus.fa"), spid=list(set(pd.read_csv(config['samples']['file'])['spID'])), aligner=['BWA'])
     output: join(config['consensus_dir'], "merged.consenus.fa")
     shell: "cat {input} > {output}"
 
