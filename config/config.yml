@@ -53,12 +53,14 @@ min_coverage: 100
 min_reads_supporting: 10
 min_allele_frequency: 0.005
 strand_bias_filter: 1
+maxdepth: 100000
 
 # Kmer lengths for consensus assembly - tune to read length
 kmer:
     error_correct: 24
     extend_reads: 31
     assemble_contigs: 50
+
 #### ------------------------- Dirs ------------------------ ####
 
 # ++ Results Directoties ++ #
