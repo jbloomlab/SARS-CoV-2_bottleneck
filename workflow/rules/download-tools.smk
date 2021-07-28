@@ -44,7 +44,7 @@ rule build_SnpEff:
     input: 
         snpeff=join(config['tools'], 'snpEff/snpEff.jar'),
         ref=join(config['ref_dir'], '{genome}.fa'),
-        gtf=join(config['gtf_dir'], '{genome}.gtf')
+        gff=join(config['gff_dir'], '{genome}.gff')
     output: 
         virusdir=directory(join(config['tools'], 'snpEff/data/{genome}'))
     params:
@@ -59,12 +59,12 @@ rule build_SnpEff:
         cp {input.ref} {output.virusdir}/sequences.fa
 
         # Move the gtf file
-        cp {input.gtf} {output.virusdir}/genes.gtf
+        cp {input.gff} {output.virusdir}/genes.gff
 
         # Add the genome build to the end of the file
         echo "{wildcards.genome}.genome: {wildcards.genome}" >> {params.config}
 
         # Build the new database
-        java -Xss100M -Xmx8g -jar {input.snpeff} build -gtf22 -v {wildcards.genome}
+        java -Xss100M -Xmx8g -jar {input.snpeff} build -gff3 -v {wildcards.genome}
         """
 

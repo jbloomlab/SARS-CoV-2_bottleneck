@@ -14,11 +14,11 @@ rule get_ref:
     shell: 'wget -O - {params.ftp} | gunzip -c > {output}'
 
 
-rule get_gtf:
-    """ Download the gtf format annotation. 
+rule get_gff:
+    """ Download the gff format annotation. 
     """
-    output: join(config['gtf_dir'], '{genome}.gtf')
-    params: ftp = lambda wildcards: config[wildcards.genome]['gtf']
+    output: join(config['gff_dir'], '{genome}.gff')
+    params: ftp = lambda wildcards: config[wildcards.genome]['gff']
     wildcard_constraints: genome="[^.]+"
     shell: 'wget -O - {params.ftp} | gunzip -c > {output}'
 

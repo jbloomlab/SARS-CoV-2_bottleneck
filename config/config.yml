@@ -18,13 +18,13 @@ samples:
 # Put viral and host genome ftp download locations here.         #
 # organism:                                                      #
 #   reference sequence: ftp://                                   #
-#   gtf annotations: ftp://                                      #
+#   gff annotations: ftp://                                      #
 #   contig: `only if the sequence is viral give it's contig`     #
 #### -------------------------------------------------------- ####
 
 SARS2:
   ref: ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/009/858/895/GCF_009858895.2_ASM985889v3/GCF_009858895.2_ASM985889v3_genomic.fna.gz
-  gtf: ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/009/858/895/GCF_009858895.2_ASM985889v3/GCF_009858895.2_ASM985889v3_genomic.gtf.gz
+  gff: ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/009/858/895/GCF_009858895.2_ASM985889v3/GCF_009858895.2_ASM985889v3_genomic.gff.gz
   contig: NC_045512.2
 
 human:
@@ -77,7 +77,7 @@ consensus_dir: results/consensus
 # ++ Config Directoties ++ #
 tools: config/tools
 ref_dir: config/ref
-gtf_dir: config/gtf
+gff_dir: config/gff
 gisaid_dir: config/gisaid
 index_dir: 
   bwa: config/index/bwa
