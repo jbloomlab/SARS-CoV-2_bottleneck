@@ -73,12 +73,6 @@ rule iqtree_GISAID_phylogeny:
     shell: "iqtree -s {input} -m GTR+I+G"
 
 
-rule iqtree_boat_phylogeny:
-    input: join(config['consensus_dir'], "merged.consenus.fa")
-    output: join(config['consensus_dir'], "merged.consenus.fa.iqtree")
-    conda: "../envs/iqtree.yml"
-    shell: "iqtree -s {input}"
-
 
 def hamming_distance(chaine1, chaine2):
     """

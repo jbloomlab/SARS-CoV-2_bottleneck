@@ -116,30 +116,19 @@ def merge_consensus_seq(consensus_1, consensus_2, sample, refpath):
     
     # Iterate over ever position and compare depth and allele to merge.
     for pos, bases in enumerate(zip(consensus_1, consensus_2)): 
-        
-        # Mask the last 40 bases or so of the genome (repetative poly-A track)
-        if pos + 1 >= 29860:
-            merged_consensus += ref[pos]
-            continue
-        
-        # If the bases agree in the replicates add those bases:
-        if bases[0] == bases[1]:
+
+        if len(set(bases)) == 1 and 'N' not in bases:
             merged_consensus += bases[0]
-        
-        # If a position is not covered in one of the replicates: 
-        else: 
-            if 'N' in bases: 
-                if set(bases) == {'N'}:
-                    merged_consensus += ref[pos]
-                else: 
-                    if bases[0] == 'N':
-                        merged_consensus += bases[1]
-                    else: 
-                        merged_consensus += bases[0]
+        elif len(set(bases)) == 1 and 'N' in bases:
+            merged_consensus += ref[pos]
+        elif len(set(bases)) > 1:
+            if 'N' in bases and bases[0] == 'N':
+                merged_consensus += bases[1]
+            elif 'N' in bases and bases[1] == 'N':
+                merged_consensus += bases[0]
             else:
-                print(f"Warning! There is a discrepency in highly covered bases at position {pos + 1} for sample {sample}: {bases}")
                 merged_consensus += ref[pos]
-                
+       
     return merged_consensus
     
     

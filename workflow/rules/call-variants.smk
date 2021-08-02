@@ -53,8 +53,6 @@ rule varscan_calling:
         pileup=join(config['pileup_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.mpileup.txt")
     output: 
         variants=join(config['variant_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.varscan.vcf"),
-        tmp_snp=temp(join(config['variant_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.varscan.snp.vcf")),
-        tmp_indel=temp(join(config['variant_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.varscan.indel.vcf"))
     params:
         minimum_coverage=config['min_coverage'],
         minumum_supporting_reads=config['min_reads_supporting'],

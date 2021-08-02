@@ -34,3 +34,10 @@ rule align_consensus:
     conda: '../envs/consensus.yml'
     shell: "mafft {input} > {output}"
 
+
+rule iqtree_boat_phylogeny:
+    """Make a phylogeny of the high-quality samples from the boat."""
+    input: join(config['consensus_dir'], "aligned_consensus.fa")
+    output: join(config['consensus_dir'], "aligned_consensus.fa.iqtree")
+    conda: "../envs/iqtree.yml"
+    shell: "iqtree -s {input}"
