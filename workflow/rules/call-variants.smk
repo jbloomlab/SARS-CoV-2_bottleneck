@@ -27,7 +27,7 @@ rule ivar_calling:
     input:
            bam=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.merged.bam"),
            bai=join(config['align_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.sorted.merged.bam.bai"),        
-           gff=join(config['gff_dir'], "MeVChiTok.gff"),
+           gff=join(config['gff_dir'], "SARS2.gff"),
            genome=get_genome
     output: txt=join(config['variant_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.ivar.ann.txt"),
             tsv=temp(join(config['variant_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.ivar.ann.tsv"))
@@ -175,7 +175,7 @@ rule aggregate_variants:
     """
     This rule aggregates all of the variants. 
     """
-    input: expand([join(config['variant_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.{caller}.ann.csv")], accession=samples, aligner=['BWA'], caller=['varscan', 'lofreq'])
+    input: expand([join(config['variant_dir'], "{aligner}", "{accession}", "{accession}.{aligner}.{caller}.ann.csv")], accession=samples, aligner=['BWA'], caller=['varscan', 'lofreq', 'ivar'])
     output: join(config['variant_dir'], "variants.csv")
     run: aggregate_csv(input, output)
 

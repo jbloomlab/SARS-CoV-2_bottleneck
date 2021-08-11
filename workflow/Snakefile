@@ -49,6 +49,7 @@ rule clean:
 
 include: "rules/qc-tools.smk"
 include: "rules/download-reference.smk"
+include: "rules/download-tools.smk"
 include: "rules/download-fastq.smk"
 include: "rules/index-reference.smk"
 include: "rules/trim-adapters.smk"
