@@ -21,7 +21,7 @@ knitr::opts_chunk$set(echo = FALSE)
 ## ==== Install Required Packages ==== ##
 
 ## List of all packages needed -- non-BioManager installed
-packages = c("tidyverse", "ggrepel", "plotly", "ggpubr", "gridExtra", 'grid')
+packages = c("tidyverse", "ggrepel", "plotly", "ggpubr", "gridExtra", 'grid', "UpSetR")
 ## Check that packages are installed, if not, install them
 installed_packages <- packages %in% rownames(installed.packages())
 if (any(installed_packages == FALSE)) {
@@ -46,16 +46,21 @@ average.depth.data = "../../results/coverage/merged.average.depth"
 
 ```
 
-```{r Format data, include=FALSE, warning=FALSE, message=FALSE}
+```{r Filter Low Depth Sample, warning=F, message=F}
 
 # Low quality samples - get the accessions for the samples that failed basic quality control. 
-# Presently, this anything that has 20% of the genome covered by less than 200 reads. 
+# Presently, this anything that has 20% of the genome covered by less than *200* reads. 
 average.depth.df = read.table(average.depth.data, header = T) %>% 
   separate(Accession, into = c("Accession", "Replicate")) %>% 
   mutate(Run = paste0(Accession, Replicate))
 
 low.coverage.samples = average.depth.df %>% filter(Percent < 80) %>% pull(Accession)
 low.coverage.runs = average.depth.df %>% filter(Percent < 80) %>% pull(Run)
+
+```
+
+
+```{r Format Pysam data, include=FALSE, warning=FALSE, message=FALSE}
 
 # Import the data splitting the accession ID into the Accession and the Replicate
 pysam.df = read_csv(pysam.data) %>% 
@@ -76,6 +81,64 @@ pysam.combined.df = full_join(
   mutate_each(list( ~ replace(., which(is.na(.)), 0))) %>% 
   mutate(Coverage = ifelse(ACCESSION %in% low.coverage.samples, "Low", "High"))
 
+
+
+```
+
+```{r Format Variant Data, warning=F, message=F}
+
+variant.df = read_csv(variant.data) %>% 
+  select(!c("Library", "Path", "Aligner", "LibraryLayout", "Virus", "Host", "Source", "Percent", "spID", "Replicate")) %>% 
+  distinct() %>%  # Duplicated columns when you merge with the sample data. 
+  separate(Accession, into = c("ACCESSION", "REPLICATE"), sep = "_") %>% 
+  rename("AA_CHANGE" = AA_Change, "EFFECT" = Effect, "GENE" = Gene_Name)
+
+variant.df.to.join = variant.df %>% 
+  select(!c("EFFECT", "GENE", "AA_CHANGE"))
+
+variant.combined.df = full_join(
+  filter(variant.df.to.join, REPLICATE == "1"),
+  filter(variant.df.to.join, REPLICATE == "2"), 
+  by = c("ACCESSION", "POS", "REF", "ALT", "Caller"),
+  suffix = c(".one", ".two")
+  ) %>% 
+  select(!c("REPLICATE.one", "REPLICATE.two")) %>% 
+  mutate_each(list( ~ replace(., which(is.na(.)), 0))) %>% 
+  mutate(Coverage = ifelse(ACCESSION %in% low.coverage.samples, "Low", "High"))
+
+
+```
+
+## Pipeline Comparison
+
+Here I compare the variant callers to one another. I only look at SNPs because I've only benchmarked the pipeline of SNPs. It's a good sign tha the largest set is the overalp of all callers. Otherwise, there are no variants called by Pysam that are absent from other callers, which is a good tidbit. 
+
+```{r Compare Callers, message=F, warning=F}
+
+
+pysam.df %>% 
+  mutate(Caller = "pysam") %>% 
+  select(colnames(variant.df)) %>% 
+  rbind(., variant.df) %>%  
+  filter(AF >= 0.02) %>% 
+  mutate(Type = case_when(nchar(REF) > 1 ~ "Del",
+                          nchar(ALT) > 1 ~ "Ins",
+                          nchar(REF) == 1 ~ "SNP")) %>% 
+  filter(Type == "SNP") %>% 
+  filter(DP >= 200) %>% 
+  filter(AF >= 0.02) %>% 
+  mutate(SNP= paste0(REF, POS, ALT)) %>% 
+  mutate(Identifier = paste(ACCESSION, REPLICATE, SNP, sep = "-")) %>% 
+  select(Identifier, Caller) %>% 
+  distinct() %>% 
+  mutate(Tally = 1) %>% 
+  pivot_wider(names_from = "Caller", values_from = "Tally", values_fill = 0) %>% 
+  as.data.frame(row.names = Identifier) %>%
+  upset(., sets = c("lofreq",
+                          "varscan",
+                          "ivar",
+                          "pysam"), sets.bar.color = "#56B4E9",
+      order.by = "freq", empty.intersections = "on", text.scale = 1.5)
 
 ```
 
