@@ -47,9 +47,24 @@ variant.data = "../../results/variants/variants.csv"
 average.depth.data = "../../results/coverage/merged.average.depth" 
 
 # Annotation of SARS-CoV-2 gene positions
-annotation.data = "../../config/sars_cov_2_annot.csv"
+annotation.data = "../../config/data/sars_cov_2_annot.csv"
 
 ```
+
+
+```{r Filter Low Depth Sample, warning=F, message=F}
+
+# Low quality samples - get the accessions for the samples that failed basic quality control. 
+# Presently, this anything that has 20% of the genome covered by less than *200* reads. 
+average.depth.df = read.table(average.depth.data, header = T) %>% 
+  separate(Accession, into = c("Accession", "Replicate")) %>% 
+  mutate(Run = paste0(Accession, Replicate))
+
+low.coverage.samples = average.depth.df %>% filter(Percent < 80) %>% pull(Accession)
+low.coverage.runs = average.depth.df %>% filter(Percent < 80) %>% pull(Run)
+
+```
+
 
 ```{r Format data, include=FALSE, warning=FALSE, message=FALSE}
 
@@ -78,33 +93,34 @@ pysam.combined.snps.df = full_join(
   select(!c("REPLICATE.one", "REPLICATE.two", "SNP.one", "SNP.two", "CONS.one", "CONS.two")) %>% 
   mutate_each(list( ~ replace(., which(is.na(.)), 0)))
 
-# Varinat data from lofreq and varscan
-variant.df = read_csv(variant.data) %>% 
-  filter(Library == 1) %>% 
-  filter(Caller == "lofreq") %>% 
-  rename(ACCESSION = "spID", REPLICATE = "Replicate") %>% 
-  select(ACCESSION, REPLICATE, POS, DP, REF, ALT, AF) %>% 
-  mutate(SNP = TRUE, CONS = ifelse(AF >= 0.5, TRUE, FALSE))
-
-variant.combined.snps.df = full_join(
-  filter(variant.df, REPLICATE == "1"),
-  filter(variant.df, REPLICATE == "2"), 
-  by = c("ACCESSION", "POS", "REF", "ALT"),
-  suffix = c(".one", ".two")
-  ) %>% 
-  select(!c("REPLICATE.one", "REPLICATE.two", "SNP.one", "SNP.two", "CONS.one", "CONS.two")) %>% 
-  mutate_each(list( ~ replace(., which(is.na(.)), 0)))
-
-
-# Low quality samples 
-average.depth.df = read.table(average.depth.data, header = T) %>% 
-  separate(Accession, into = c("Accession", "Replicate")) %>% 
-  mutate(Run = paste0(Accession, Replicate))
-
-low.coverage.samples = average.depth.df %>% filter(Percent < 80) %>% pull(Accession)
-low.coverage.runs = average.depth.df %>% filter(Percent < 80) %>% pull(Run)
 
 ```
+
+
+```{r Format Variant Data, warning=F, message=F}
+
+variant.df = read_csv(variant.data) %>% 
+  select(!c("Library", "Path", "Aligner", "LibraryLayout", "Virus", "Host", "Source", "Percent", "spID", "Replicate")) %>% 
+  distinct() %>%  # Duplicated columns when you merge with the sample data. 
+  separate(Accession, into = c("ACCESSION", "REPLICATE"), sep = "_") %>% 
+  rename("AA_CHANGE" = AA_Change, "EFFECT" = Effect, "GENE" = Gene_Name)
+
+variant.df.to.join = variant.df %>% 
+  select(!c("EFFECT", "GENE", "AA_CHANGE"))
+
+variant.combined.df = full_join(
+  filter(variant.df.to.join, REPLICATE == "1"),
+  filter(variant.df.to.join, REPLICATE == "2"), 
+  by = c("ACCESSION", "POS", "REF", "ALT", "Caller"),
+  suffix = c(".one", ".two")
+  ) %>% 
+  select(!c("REPLICATE.one", "REPLICATE.two")) %>% 
+  mutate_each(list( ~ replace(., which(is.na(.)), 0))) %>% 
+  mutate(Coverage = ifelse(ACCESSION %in% low.coverage.samples, "Low", "High"))
+
+
+```
+
 
 ```{r Annotations, echo=F, message=F, warning=F, fig.width=25, fig.height=20, fig.align="center"}
 
@@ -168,6 +184,7 @@ final.variant.df = rbind(filter(selected.variant.df, AF < 0.5), fipped.cons) %>%
   mutate(SNV = paste0(REF, POS, ALT))
 
 ```
+
 
 ```{r}
 
@@ -538,6 +555,15 @@ pysam.df %>%
     ylab("Count") + 
     scale_fill_manual(values = c("#fa130f", "#262aff"), name = "Greater than 5%") +
     theme_bw(15)
+
+```
+
+```{r}
+variant.df %>% 
+  filter(POS == 18402)
+
+pysam.df %>% 
+  filter(POS == 18402 & ALT == "A")
 
 ```
 

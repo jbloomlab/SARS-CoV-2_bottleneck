@@ -115,7 +115,6 @@ Here I compare the variant callers to one another. I only look at SNPs because I
 
 ```{r Compare Callers, message=F, warning=F}
 
-
 pysam.df %>% 
   mutate(Caller = "pysam") %>% 
   select(colnames(variant.df)) %>% 
@@ -144,7 +143,7 @@ pysam.df %>%
 
 ## Concordance
 
-Below is a plot of the concordance of allele frequency between the sequencing replicates of all libraries. This doesn't include any filters for depth of sequencing.
+Below is a plot of the concordance of allele frequency between the sequencing replicates of all libraries. TODO: add correlation coeff. 
 
 ```{r}
 
@@ -222,4 +221,40 @@ ggsave("../../config/figures/figure-2.png", plot = final_plot, width = 25, heigh
 
 ```
 
+Supplemental figure showing which samples won't be included in the analysis because the allele frequences between replicates are to dissimilar. In this case, I cut off the long tail. All samples that had more than 0.025 mean difference between SNPs were not included in the downstream analysis. 
+
+```{r}
+
+# Cut off the long tail of the distribution
+pysam.combined.df %>% 
+  filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
+  filter(DP.one >= 100 & DP.two >= 100) %>% 
+  select(ACCESSION, REF, POS, ALT, DP.one, DP.two, AF.one, AF.two) %>% 
+  mutate(DIFF = abs(AF.one - AF.two)) %>% 
+  group_by(ACCESSION) %>% 
+  summarise(MEAN_DIFF = mean(DIFF)) %>% 
+  ggplot(aes(x = MEAN_DIFF)) + 
+    geom_histogram(bins = 30) + 
+    geom_vline(xintercept = 0.025, col = "red") +
+    xlab("Mean Difference Between Replicates") +
+    ylab("Samples") +
+    theme_classic() +
+    theme(text=element_text(size = 18,  family="Helvetica")) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+    theme(panel.background = element_rect(fill = NA, color = "black")) +
+    theme(plot.title = element_text(hjust = 0.5))
+  
+pysam.combined.df %>% 
+  filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
+  filter(DP.one >= 100 & DP.two >= 100) %>% 
+  select(ACCESSION, REF, POS, ALT, DP.one, DP.two, AF.one, AF.two) %>% 
+  mutate(DIFF = abs(AF.one - AF.two)) %>% 
+  group_by(ACCESSION) %>% 
+  summarise(MEAN_DIFF = mean(DIFF)) %>% 
+  filter(MEAN_DIFF >= 0.025) %>% 
+  pull(ACCESSION)
+
+ggsave("../../config/figures/supplemental-figure-3.png", width = 7, height = 5, dpi = 300, units = "in")
+
+```
 
