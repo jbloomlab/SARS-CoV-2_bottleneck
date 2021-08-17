@@ -7,10 +7,6 @@ output: html_document
 
 This notebook contains an analysis of the features of minor variants for the `SARS-CoV-2_Bottleneck` project. The main goals of this notebook are to characterize: 
 
-1. Identify distribution of minor variants over the genome.
-2. Determine the ratio of tansitions to transversions. 
-3. Show the mutation specturm.
-
 ```{r Setup, include=FALSE}
 require("knitr")
 knitr::opts_chunk$set(echo = FALSE)
@@ -49,8 +45,12 @@ average.depth.data = "../../results/coverage/merged.average.depth"
 # Annotation of SARS-CoV-2 gene positions
 annotation.data = "../../config/data/sars_cov_2_annot.csv"
 
+# Sample data
+sample_metadata = "../../config/data/Boat_Sample_Metadata.csv"
+
 ```
 
+First, I'll get a list of the low coverage samples to exclude from downstream analyses. These are any samples where at least on replicate has more than 20% of the genome covered by less than 200 reads:
 
 ```{r Filter Low Depth Sample, warning=F, message=F}
 
@@ -63,10 +63,12 @@ average.depth.df = read.table(average.depth.data, header = T) %>%
 low.coverage.samples = average.depth.df %>% filter(Percent < 80) %>% pull(Accession)
 low.coverage.runs = average.depth.df %>% filter(Percent < 80) %>% pull(Run)
 
+print(low.coverage.samples)
 ```
 
+Next, I'll format the variants that I called using the pileup function of the Python library `Pysam`. I'll also join the replicates.
 
-```{r Format data, include=FALSE, warning=FALSE, message=FALSE}
+```{r Format data, warning=FALSE, message=FALSE}
 
 # Import the data splitting the accession ID into the Accession and the Replicate
 pysam.df = read_csv(pysam.data) %>% 
@@ -93,9 +95,10 @@ pysam.combined.snps.df = full_join(
   select(!c("REPLICATE.one", "REPLICATE.two", "SNP.one", "SNP.two", "CONS.one", "CONS.two")) %>% 
   mutate_each(list( ~ replace(., which(is.na(.)), 0)))
 
-
+print(head(pysam.combined.snps.df))
 ```
 
+Then, I'll do the sample with the variants called with three variant calling softwares: `lofreq`, `ivar`, and `varscan`. Here, I also standardize the column names with those of the pysam variants. 
 
 ```{r Format Variant Data, warning=F, message=F}
 
@@ -105,24 +108,22 @@ variant.df = read_csv(variant.data) %>%
   separate(Accession, into = c("ACCESSION", "REPLICATE"), sep = "_") %>% 
   rename("AA_CHANGE" = AA_Change, "EFFECT" = Effect, "GENE" = Gene_Name)
 
-variant.df.to.join = variant.df %>% 
-  select(!c("EFFECT", "GENE", "AA_CHANGE"))
-
 variant.combined.df = full_join(
-  filter(variant.df.to.join, REPLICATE == "1"),
-  filter(variant.df.to.join, REPLICATE == "2"), 
-  by = c("ACCESSION", "POS", "REF", "ALT", "Caller"),
+  filter(variant.df, REPLICATE == "1"),
+  filter(variant.df, REPLICATE == "2"), 
+  by = c("ACCESSION", "POS", "REF", "ALT", "EFFECT", "GENE", "AA_CHANGE", "Caller"),
   suffix = c(".one", ".two")
   ) %>% 
   select(!c("REPLICATE.one", "REPLICATE.two")) %>% 
   mutate_each(list( ~ replace(., which(is.na(.)), 0))) %>% 
   mutate(Coverage = ifelse(ACCESSION %in% low.coverage.samples, "Low", "High"))
 
-
+print(head(variant.combined.df))
 ```
 
+Here, I've formated the annotations of gene location and position for plotting the genome as a diagram below.
 
-```{r Annotations, echo=F, message=F, warning=F, fig.width=25, fig.height=20, fig.align="center"}
+```{r Annotations, message=F, warning=F, fig.width=25, fig.height=20, fig.align="center"}
 
 # Read in the SARS-CoV-2 gene annotations
 annotation.df = read_csv(annotation.data)
@@ -149,7 +150,16 @@ ORF10 = annotation.df %>% dplyr::filter(gene == "ORF10")
 effect_colors = c("#e2e627", "#13a13b", "#990505")
 ```
 
-```{r}
+Next, I wanted to select the main variants to include in the downstream analyses. To be included, the SNPs need to meet the following criteria: 
+
+1. They must be in samples that are 'high coverage' 80% of the genome covered by 100 reads or more. 
+2. They have to be samples with high concordance between replicate allele frequencies (see `sequencing-replicate-analysis.Rmd`). 
+3. Variants must be present at more than 2% frequency in both of the replicates. 
+4. Variants must be covered by more than 100 reads in both of the replicates. 
+
+Finally, the variants are combined between the replicates by averaging the allele frequency. Then, alleles present at more than 50% frequency and less than 98% frequency are flipped to their non-consensus counterparts. 
+
+```{r Prepare Final Variants, warning=F, message=F}
 
 # Final samples and mutations to analyze: 
 # Remove low coverage samples
@@ -158,11 +168,10 @@ effect_colors = c("#e2e627", "#13a13b", "#990505")
 # Remove samples with poor replicate condordance: 10089, 10117, *10088*
 
 selected.variant.df = pysam.combined.snps.df %>% 
-  mutate(Coverage = ifelse(ACCESSION %in% low.coverage.samples, "Low", "High")) %>% 
+  filter(!(ACCESSION %in% low.coverage.samples)) %>% 
+  filter(!(ACCESSION %in% c("10089", "10117", "10088"))) %>% 
   filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
   filter(DP.one >= 100 & DP.two >= 100) %>% 
-  filter(Coverage == "High") %>% 
-  filter(!(ACCESSION %in% c("10089", "10117", "10088"))) %>% 
   # Allele frequency is the average of the two replicates
   mutate(AF = (AF.one + AF.two)/2) %>% 
   select(ACCESSION, POS, REF, ALT, AF, AA_CHANGE = "AA_CHANGE.one", EFFECT = "EFFECT.one", GENE = "GENE.one") 
@@ -185,6 +194,78 @@ final.variant.df = rbind(filter(selected.variant.df, AF < 0.5), fipped.cons) %>%
 
 ```
 
+Lets compare the number of SNPs called in each method to the Ct value of the initial samples. iSNVs are the SNPs that are present in both replicates with more than 100 reads covering them, more than 2% freq, SNPs only, and less than 50%.
+
+```{r Pysam iSNVs vs. Ct, warning=F, message=F}
+
+ct_df = read_csv(sample_metadata) %>% 
+  rename("ACCESSION" = SpID, "Ct" = avg_ct) %>% 
+  select(ACCESSION, Ct) %>% 
+  mutate(ACCESSION = as.character(ACCESSION))
+
+iSNV_count.df = final.variant.df %>% 
+  group_by(ACCESSION) %>% 
+  count()
+
+left_join(iSNV_count.df, ct_df, by = "ACCESSION") %>% 
+  ggplot(aes(x = Ct, y = n)) +
+    geom_point(size = 3) +
+    scale_x_reverse() + 
+    ylab('iSNV Count') + 
+    xlab('Cycle Threshold') +
+    theme_bw(18)
+  
+```
+
+It's clear that Ct value doesn't correlate with the number of iSNVs called after filtering. This could have to do with (1) Ct value not being a close enough proxy for viral template number, (2) The number of iSNVs being too low to record any signal here, or (3) the Ct value being low enough across all these samples that RNA levels aren't the limiting factor in our sensitivity to call variants. 
+
+```{r Variant Caller iSNVs vs. Ct, warning=F, message=F}
+
+variant.selected.variant.df = variant.combined.df %>% 
+  mutate(Type = case_when(nchar(REF) > 1 ~ "Del",
+                          nchar(ALT) > 1 ~ "Ins",
+                          nchar(REF) == 1 ~ "SNP")) %>% 
+  filter(Type == "SNP") %>% 
+  filter(!(ACCESSION %in% low.coverage.samples)) %>% 
+  filter(!(ACCESSION %in% c("10089", "10117", "10088"))) %>% 
+  filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
+  filter(DP.one >= 100 & DP.two >= 100) %>% 
+  # Allele frequency is the average of the two replicates
+  mutate(AF = (AF.one + AF.two)/2) %>% 
+  select(ACCESSION, POS, REF, ALT, AF, AA_CHANGE, EFFECT, GENE, Caller) 
+
+# Filp the consensus variants
+variant.fipped.cons = variant.selected.variant.df %>% 
+  filter(AF >= 0.5) %>% 
+  rename(ALT = "REF", REF = "ALT") %>% 
+  mutate(AF = (1 - AF)) %>% 
+  filter(AF >= 0.02) %>% 
+  separate(AA_CHANGE, into = c("WT", "AAPOS"),
+           sep = "((?<=[A-Za-z])(?=[0-9]))") %>% 
+  separate(AAPOS, into = c("AAPOS", "MUT"),
+           sep = "((?<=[0-9])(?=[A-Za-z]))") %>% 
+  mutate(AA_CHANGE = paste0(MUT, AAPOS, WT)) %>% 
+  select(!c("MUT", "WT", "AAPOS"))
+
+variant.final.variant.df = rbind(filter(variant.selected.variant.df, AF < 0.5), variant.fipped.cons) %>% 
+  mutate(SNV = paste0(REF, POS, ALT))
+
+iSNV_count.df = variant.final.variant.df %>% 
+  group_by(ACCESSION, Caller) %>% 
+  count()
+
+left_join(iSNV_count.df, ct_df, by = "ACCESSION") %>% 
+  ggplot(aes(x = Ct, y = n)) +
+    geom_point(size = 3) +
+    facet_wrap(~Caller) +
+    scale_x_reverse() + 
+    ylab('iSNV Count') + 
+    xlab('Cycle Threshold') +
+    theme_bw(18)
+
+```
+
+Although the number of "passing" variants is a little bit different between the callers, the relationship between iSNVs and Ct holds in all three methods. 
 
 ```{r}
 
