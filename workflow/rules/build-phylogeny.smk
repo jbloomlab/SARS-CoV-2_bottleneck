@@ -8,7 +8,10 @@
 
 rule run_phylogeny_analysis:
     input: join(config['consensus_dir'], "aligned_consensus.fa"),
-    output: join(config['phylogeny_dir'], "after_washington_phylogeny.png")
+    output: join(config['phylogeny_dir'], "custom-boat-sequences.png"),
+            join(config['phylogeny_dir'], "all-boat-sequences.png"),
+            join(config['phylogeny_dir'], "representative-global-phylogeny.png"),
+            join(config['phylogeny_dir'], "washington-only-phylogeny.png")
     conda: "../envs/iqtree.yml"
     notebook: "../notebooks/Phylogenetic-Analysis.ipynb"
 
