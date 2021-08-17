@@ -5,6 +5,14 @@
 # Date: 01/29/2021
 #
 
+
+rule run_phylogeny_analysis:
+    input: join(config['consensus_dir'], "aligned_consensus.fa"),
+    output: join(config['phylogeny_dir'], "after_washington_phylogeny.png")
+    conda: "../envs/iqtree.yml"
+    notebook: "../notebooks/Phylogenetic-Analysis.ipynb"
+
+
 rule get_blast_sequences:
     input: metadata = join(config['gisaid_dir'], "metadata_2021-03-04_10-31.tsv"),
            sequences = join(config['gisaid_dir'], "sequences_2021-03-04_08-34.fasta")

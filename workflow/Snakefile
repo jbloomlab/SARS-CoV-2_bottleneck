@@ -35,7 +35,8 @@ rule all:
         join(config['coverage_dir'], "merged.average.depth"),
         join(config['coverage_dir'], "merged.depth"),
         join(config['consensus_dir'], "aligned_consensus.fa"),
-        join(config['consensus_dir'], "aligned_consensus.fa.iqtree")
+        join(config['consensus_dir'], "aligned_consensus.fa.iqtree"),
+        join(config['phylogeny_dir'], "after_washington_phylogeny.png")
 
 
 rule clean:

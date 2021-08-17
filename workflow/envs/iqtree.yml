@@ -5,3 +5,9 @@ dependencies:
   - iqtree
   - blast
   - mafft
+  - python=3.7.8
+  - biopython
+  - pandas 
+  - numpy
+  - jupyter =1.0
+  - jupyterlab_code_formatter =1.4

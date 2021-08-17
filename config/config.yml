@@ -73,6 +73,7 @@ coverage_dir: results/coverage
 variant_dir: results/variants
 pileup_dir: results/pileup
 consensus_dir: results/consensus
+phylogeny_dir: results/phylogeny
 
 # ++ Config Directoties ++ #
 tools: config/tools
