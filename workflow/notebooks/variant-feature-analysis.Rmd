@@ -50,23 +50,7 @@ sample_metadata = "../../config/data/Boat_Sample_Metadata.csv"
 
 ```
 
-First, I'll get a list of the low coverage samples to exclude from downstream analyses. These are any samples where at least on replicate has more than 20% of the genome covered by less than 200 reads:
-
-```{r Filter Low Depth Sample, warning=F, message=F}
-
-# Low quality samples - get the accessions for the samples that failed basic quality control. 
-# Presently, this anything that has 20% of the genome covered by less than *200* reads. 
-average.depth.df = read.table(average.depth.data, header = T) %>% 
-  separate(Accession, into = c("Accession", "Replicate")) %>% 
-  mutate(Run = paste0(Accession, Replicate))
-
-low.coverage.samples = average.depth.df %>% filter(Percent < 80) %>% pull(Accession)
-low.coverage.runs = average.depth.df %>% filter(Percent < 80) %>% pull(Run)
-
-print(low.coverage.samples)
-```
-
-Next, I'll format the variants that I called using the pileup function of the Python library `Pysam`. I'll also join the replicates.
+I'll format the variants that I called using the pileup function of the Python library `Pysam`. I'll also join the replicates.
 
 ```{r Format data, warning=FALSE, message=FALSE}
 
@@ -115,8 +99,7 @@ variant.combined.df = full_join(
   suffix = c(".one", ".two")
   ) %>% 
   select(!c("REPLICATE.one", "REPLICATE.two")) %>% 
-  mutate_each(list( ~ replace(., which(is.na(.)), 0))) %>% 
-  mutate(Coverage = ifelse(ACCESSION %in% low.coverage.samples, "Low", "High"))
+  mutate_each(list( ~ replace(., which(is.na(.)), 0)))
 
 print(head(variant.combined.df))
 ```
@@ -150,6 +133,40 @@ ORF10 = annotation.df %>% dplyr::filter(gene == "ORF10")
 effect_colors = c("#e2e627", "#13a13b", "#990505")
 ```
 
+I'll get a list of the low coverage samples to exclude from downstream analyses. These are any samples where at least on replicate has more than 20% of the genome covered by less than 200 reads:
+
+```{r Filter Low Depth Sample, warning=F, message=F}
+
+# Low quality samples - get the accessions for the samples that failed basic quality control. 
+# Presently, this anything that has 20% of the genome covered by less than *200* reads. 
+average.depth.df = read.table(average.depth.data, header = T) %>% 
+  separate(Accession, into = c("Accession", "Replicate")) %>% 
+  mutate(Run = paste0(Accession, Replicate))
+
+low.coverage.samples = average.depth.df %>% filter(Percent < 80) %>% pull(Accession)
+low.coverage.runs = average.depth.df %>% filter(Percent < 80) %>% pull(Run)
+
+print(low.coverage.samples)
+```
+
+I'll also get a list of all of the samples that have poor concordance between replicates. 
+
+```{r Filter Poor Concordance Samples, warning=F, message=F}
+
+poor.concordance.samples = pysam.combined.snps.df %>% 
+  filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
+  filter(DP.one >= 100 & DP.two >= 100) %>% 
+  select(ACCESSION, REF, POS, ALT, DP.one, DP.two, AF.one, AF.two) %>% 
+  mutate(DIFF = abs(AF.one - AF.two)) %>% 
+  group_by(ACCESSION) %>% 
+  summarise(MEAN_DIFF = mean(DIFF)) %>% 
+  filter(MEAN_DIFF >= 0.025) %>% 
+  pull(ACCESSION)
+
+print(poor.concordance.samples)
+
+```
+
 Next, I wanted to select the main variants to include in the downstream analyses. To be included, the SNPs need to meet the following criteria: 
 
 1. They must be in samples that are 'high coverage' 80% of the genome covered by 100 reads or more. 
@@ -169,7 +186,7 @@ Finally, the variants are combined between the replicates by averaging the allel
 
 selected.variant.df = pysam.combined.snps.df %>% 
   filter(!(ACCESSION %in% low.coverage.samples)) %>% 
-  filter(!(ACCESSION %in% c("10089", "10117", "10088"))) %>% 
+  filter(!(ACCESSION %in% poor.concordance.samples)) %>% 
   filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
   filter(DP.one >= 100 & DP.two >= 100) %>% 
   # Allele frequency is the average of the two replicates
@@ -227,7 +244,7 @@ variant.selected.variant.df = variant.combined.df %>%
                           nchar(REF) == 1 ~ "SNP")) %>% 
   filter(Type == "SNP") %>% 
   filter(!(ACCESSION %in% low.coverage.samples)) %>% 
-  filter(!(ACCESSION %in% c("10089", "10117", "10088"))) %>% 
+  filter(!(ACCESSION %in% poor.concordance.samples)) %>% 
   filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
   filter(DP.one >= 100 & DP.two >= 100) %>% 
   # Allele frequency is the average of the two replicates
