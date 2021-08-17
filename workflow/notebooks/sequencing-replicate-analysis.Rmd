@@ -124,7 +124,7 @@ pysam.df %>%
                           nchar(ALT) > 1 ~ "Ins",
                           nchar(REF) == 1 ~ "SNP")) %>% 
   filter(Type == "SNP") %>% 
-  filter(DP >= 200) %>% 
+  filter(DP >= 100) %>% 
   filter(AF >= 0.02) %>% 
   mutate(SNP= paste0(REF, POS, ALT)) %>% 
   mutate(Identifier = paste(ACCESSION, REPLICATE, SNP, sep = "-")) %>% 
