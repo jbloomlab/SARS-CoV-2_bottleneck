@@ -46,7 +46,7 @@ rule average_depth:
     shell:
         """
         samtools depth -a -q {params.score} -g DUP {input.bam} \
-            | awk '{{ if ($3 >= 200) sum+=1}} END {{print sum/NR*100}}' - \
+            | awk '{{ if ($3 >= 100) sum+=1}} END {{print sum/NR*100}}' - \
             > {output}
 
         sed -i "s/$/\t{wildcards.accession}/" {output} 
