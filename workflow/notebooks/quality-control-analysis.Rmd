@@ -5,18 +5,14 @@ date: "1/11/2021"
 output: html_document
 ---
 
-This notebook contains an QC analysis of sequencing runs for the `SARS-CoV-2_Bottleneck` project. The main goals of this notebook are to characterize: 
-
-1. Identify samples and regions of low-depth in the sequencing. 
-2. Determine the contribution of extra sequencing to the quality of samples. 
-3. Identify any oddities in the sequencing runs.
+The goal of this notebook is assess some of the non-coverage related aspects of library quality. I also look at some of the background data, including Ct values for each sample, the number of people who were infected on the boat, and more. This notebook provides background and context for the outbreak samples.
 
 ```{r Setup, include=FALSE}
 require("knitr")
 knitr::opts_chunk$set(echo = FALSE)
 ```
 
-```{r Required Packages, message=FALSE, warning=FALSE, echo=FALSE}
+```{r Required Packages, message=FALSE, echo=FALSE}
 
 ## ==== Install Required Packages ==== ##
 
@@ -39,16 +35,22 @@ invisible(lapply(c(packages), library, character.only = TRUE))
 # For a quick look at individual samples, there is also an HTML
 # repot generated in the `results/qc` directory.
 multiqc.data = "../../results/qc/formatted_multiqc_data.csv"
+
 # Path to the data for what % of each library are filted out by BBduk
 filter.data = "../../results/qc/BBduk_filtered_reads.csv"
+
 # Path to sample information
 sample.data = "../../config/samples.csv"
+
 # Path to boat metadata
 boat.data = "../../config/data/Boat_Sample_Metadata.csv"
 
+
+# Colors for plotting
+experiment.colors = c("#000000", "#7a7a7a")
 ```
 
-```{r Load in data, echo = FALSE, message = FALSE}
+```{r Load in data, warning=FALSE, message = FALSE}
 
 # QC data from multiqc
 multiqc.df = read_csv(multiqc.data)
@@ -66,11 +68,16 @@ boat.df = read_csv(boat.data)
 metadata.df = full_join(boat.df, sample.df, by = "SpID") %>% 
   mutate(Included = if_else(is.na(Source), "Not Included", "Included"))
 
-# Colors 
-experiment.colors = c("#000000", "#7a7a7a")
 ```
 
-Figure 1b. Shows a breakdown of all the passangers on the boat by the status of their avaliable data. According to the original paper (in section "Testing after ship returned due to outbreak."), RT-PCR testing data was avaliable for all 122 passengers upon return to shore. Of those 122 passengers, 101 tested positive within the first week + 10 days of return. The remaining three seroconverted and were considered infected on the ship. Of those 104 infections, 39 consensus genomes were assembled. 
+## Context for the Samples
+
+This donut plot shows a breakdown of all the passangers on the boat by the status of their avaliable data. There were a total of 122 people (113 men and 9 women) on the ship. The ship returned on *Day 18* after a crew member became symptomatic and required hospitalization. 
+
+According to the original paper (in section **"Testing after ship returned due to outbreak."**), RT-PCR testing data was avaliable for all 122 passengers upon 
+return to shore - however, only 118 individuals had RT-QPCR testing from the week of return. 
+
+Of those 122 passengers, 101 tested positive within the first week + 10 days of return (positive = Ct < 35). The remaining three seroconverted and were considered infected on the ship. Of those 104 infections, 39 consensus genomes were assembled (Ct < 26). 
 
 ```{r Donut, echo = F, message = F, warning = F, fig.width=6, fig.height=6, fig.align='center'}
 
@@ -96,14 +103,15 @@ ggplot(donut.df, aes(ymax=ymax, ymin=ymin, xmax=4, xmin=3, fill=Category)) +
   theme_void(35) +
   theme(legend.position = "none")
 
-ggsave("../../config/figures/figure-1-B.svg", device = svg(), width = 5, height = 5)
+ggsave("../../results/figures/donut_plot_summary.svg", device = svg(), width = 5, height = 5)
 
 ```
 
+## Ct Values of Samples
 
-Supplemental Figure 1a. The Ct values are shown for 72 samples collected from infected passangers of the boat that were avaliable for resequencing. Of those 72 samples, 24 met the stringent 20 Ct or lower cutoff for viral RNA levels. These samples were selected for our analysis. 
+The Ct values are shown for 72 samples collected from infected passangers of the boat that were **avaliable for resequencing**. Of those 72 samples, 24 met the stringent *20 Ct or lower* cutoff for viral RNA levels. These samples were selected for our analysis to be re-sequenced with Illumina NextSeq.
 
-```{r Samples included by Ct, echo = F, message = F, warning = F, fig.width=11, fig.height=5, fig.align='center'}
+```{r Samples included by Ct, message = F, warning = F, fig.width=11, fig.height=5, fig.align='center'}
 
 metadata.df %>% 
   ggplot(aes(x = as.factor(reorder(SpID, -avg_ct)), y = avg_ct, col = Included)) + 
@@ -118,11 +126,17 @@ metadata.df %>%
           axis.ticks.x=element_blank(),
           legend.position = "none") 
 
+ggsave("../../results/figures/included_samples_by_Ct.svg", device = svg(), width = 11, height = 5)
+
 ```
 
-Supplemental Figure 1b. Shows the number of reads comprising each individual library. There is a significant amount of variability between the library size of different replicates and samples. The median number of mapped reads was 1,113,690 per library/replicate. 
+## Library Size
 
-```{r Run Size, echo = FALSE, message = FALSE, fig.width=11, fig.height=5, fig.align='center'}
+Here, I looked at the size of each sequencing run. This is pretty similar to coverage, but most studies report this information in the paper as well. This includels reads that are 'PCR Duplicates', although that distinction doesn't make much sense when dealing with small genomes at high depth. It's likely that real reads will be codified as dulicates by chance in these circumstances. 
+
+This figure shows the number of reads comprising each individual library. There is a significant amount of variability between the library size of different replicates and samples. The median number of mapped reads was 1,113,690 per library/replicate. For whatever reason, the first replciate of 10027 has an insane number of reads. 
+
+```{r Run Size, message = FALSE, warning=FALSE, fig.width=11, fig.height=5, fig.align='center'}
 
 # The number of mapped reads for each sample. (1) correspond to the initial sequencing. (2) corresponds to the supplementary sequencing.
 # `merged` corresponds to the combindation of the two libraries. 
@@ -146,11 +160,18 @@ qc.df %>%
     theme(axis.text.x=element_text(angle=45, hjust=1))
 
 print(paste("The median library size is", median_lib_size, "reads."))
+
+ggsave("../../results/figures/library_size_by_replicate.svg", device = svg(), width = 11, height = 5)
+
 ```
 
-Supplemental Figure 1c. Shows the percent of the sample that deemed to belong to SARS-CoV-2 as opposed to some other organism. The percentage of reads that was filtered is pretty all over the place, with some samples nearly 100% SARS-CoV-2 and others closer to 5% SARS-CoV-2. There is also significant amount of difference between replicates. This highlights the importance of looking at replicates. 
+## Percent Filtered
 
-```{r Percent Filtered replicates, echo = FALSE, message = FALSE, fig.width=11, fig.height=5, fig.align='center'}
+Here, I wanted to look at the percentage of reads that map to SARS-CoV-2. Because this is metagenomic sequencing (a.k.a. no amplification), there will be reads that do not map to SARS-CoV-2. It's possible that the percentage of SARS-CoV-2 specific reads might be correlated with the underlying template number, and thus our ability to accuratley assess variants between the replicates. 
+
+Here is the percent of the sample that deemed to belong to SARS-CoV-2 as opposed to some other organism. The percentage of reads that was filtered is pretty all over the place, with some samples nearly 100% SARS-CoV-2 and others closer to 5% SARS-CoV-2. There is also significant amount of difference between replicates. This highlights the importance of looking at replicates. 
+
+```{r Percent Filtered replicates, message = FALSE, warning=FALSE, fig.width=11, fig.height=5, fig.align='center'}
 
 qc.df %>%
   filter(library != "merged") %>% 
@@ -169,6 +190,8 @@ qc.df %>%
     theme(plot.title = element_text(hjust = 0.5)) +
     theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
     theme(axis.text.x=element_text(angle=45, hjust=1))
+
+ggsave("../../results/figures/precent_sars-cov-2_reads.svg", device = svg(), width = 11, height = 5)
 
 ```
 
