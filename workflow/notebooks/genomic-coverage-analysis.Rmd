@@ -5,11 +5,7 @@ date: "1/29/2021"
 output: html_document
 ---
 
-This notebook contains a genomic coverage analysis of sequencing runs for the `SARS-CoV-2_Bottleneck` project. The main goals of this notebook are to characterize: 
-
-1. What percent of the genome is covered by an adequeate depth for variant calling in each run.
-2. Are there unsual patterns of coverage that suggest underlying biases?  
-3. Identify samples of low coverage to exclude from the final analysis.
+The goal of this notebook is to look at the coverage of reads over the SARS-CoV-2 genome for each deep-sequencing sample and replicate. The percentage of each genome covered by an adequate depth (100X) is assessed. Additionally, the pattern of read coverage is exmained. 
 
 ```{r Setup, include=FALSE}
 require("knitr")
@@ -33,36 +29,49 @@ invisible(lapply(c(packages), library, character.only = TRUE))
 ```
 
 ```{r Paths to data, echo = FALSE}
+# Data from `samtools stats`
+stats.data = "../../results/coverage/coverage.stats" 
 
-stats.data = "../../results/coverage/coverage.stats" # Samtools stats
-average.depth.data = "../../results/coverage/merged.average.depth" # Samtools average depth
-depth.of.coverage.data = "../../results/coverage/merged.depth" # Samtools depth 
-annotation.data = "../../config/sars_cov_2_annot.csv" # Annotation of SARS-CoV-2 gene positions
+#  Data from `samtools depth` summed for any position >= 100X / NR
+average.depth.data = "../../results/coverage/merged.average.depth" 
+
+# Data from `samtools depth` averaged over 50 BP bins 
+depth.of.coverage.data = "../../results/coverage/merged.depth" 
+
+# Annotation of SARS-CoV-2 gene positions
+annotation.data = "../../config/data/sars_cov_2_annot.csv" 
+
+
+# Colors for plotting
+experiment.colors = c("#000000", "#7a7a7a")
+
+# Make the figure directory if it doesn't exist
+dir.create("../../results/figures", showWarnings = TRUE, recursive = FALSE, mode = "0777")
 ```
 
 ```{r Format data, include=FALSE, warning=FALSE, message=FALSE}
 
+# Samtools stats
 stats.df = read_tsv(stats.data) %>% 
   separate(filename, into = c("X1", "X2", "X3", "Run", "X4"), sep = "/") %>% 
   select(!starts_with('X')) %>% 
   separate(Run, into = c("Accession", "Replicate"), remove = F)
-
+# Average Depth
 average.depth.df = read.table(average.depth.data, header = T) %>% 
   separate(Accession, into = c("Accession", "Replicate")) %>% 
   mutate(Run = paste0(Accession, Replicate))
-
+# Coverage Mins
 depth.of.coverage.df = read.table(depth.of.coverage.data, header = T) %>% 
   separate(Accession, into = c("Accession", "Replicate")) %>% 
   mutate(Run = paste0(Accession, Replicate))
 
-
-# Colors 
-experiment.colors = c("#000000", "#7a7a7a")
 ```
 
-This was the first exclusion criteria for samples in the experiment. They had to have at least 200 reads covering 80% of the genomes. Samples with less completeness were excluded. This should be one of the first supplemental figures in the paper. 
+## Completeness 
 
-```{r Percent Covered, message=FALSE, warning=FALSE, fig.width=11, fig.height=5, fig.align='center'}
+This was the first exclusion criteria for samples in the experiment. They had to have at least 100 reads covering 80% of the genomes. Samples with less completeness were excluded. We know that depth/completeness impact how accuratley we can call variants. Samples with less completeness than this fail comparisons between the replicates anyhow. 
+
+```{r Coverage Completeness, message=FALSE, warning=FALSE, fig.width=11, fig.height=5, fig.align='center'}
 
 # What is the percent of the genome covered by more than 200 reads?
 average.depth.df %>% 
@@ -82,29 +91,31 @@ average.depth.df %>%
     theme(axis.text.x=element_text(angle=25, hjust=1)) +
     theme(plot.margin = unit(c(1.5,1.5,1.5,1.5), "cm"))
 
-ggsave("../../config/figures/supplemental-1-A.svg", device = svg(), width = 11, height = 5)
+ggsave("../../results/figures/coverage_completeness_100X.svg", device = svg(), width = 11, height = 5)
 
 ```
 
-Coverage pattern is pretty erratic since this isn't amplicon sequencing. Red samples are colored as those that don't have more than 80% of the genome covered by more than 200 reads. 
+## Coverage Distribution
 
+Next, I wanted to look at the pattern of coverage over the genome. To do this, I counted the number of reads in 50 BP bins over the genome using `samtools depth` and `AWK`.  
 
-These are the samples that failed our quality control. The coverage was less than 200X in 20% of the genome.
+The coverage pattern is pretty erratic since this isn't amplicon sequencing - this is to be expected. Red samples are colored as those that don't have more than 80% of the genome covered by more than 100 reads. 
+
 ```{r Failed QC}
 
-# Low coverage samples
+# Low coverage samples - These are the samples that failed our quality control. The coverage was less than 100X in 20% of the genome.
+
 low.coverage.samples = average.depth.df %>% filter(Percent < 80) %>% pull(Accession)
 low.coverage.runs = average.depth.df %>% filter(Percent < 80) %>% pull(Run)
 
 print(paste0("There are ", length(low.coverage.samples), " low coverage samples: "))
 print(low.coverage.samples)
 
-
 ```
 
-This leads to the exclusion of 10 people: 10136, 10027, 10091, 10106, 10138, 10110, 10107, 10028, 10114, and 10039
+This leads to the exclusion of 6/24 crewmembers: 10027, 10114, 10028, 10138, 10039, and 10107
 
-```{r Coverage Pattern, message=FALSE, warning=FALSE, fig.width=15, fig.height=6, fig.align='center'}
+```{r Coverage Distribution, message=FALSE, warning=FALSE, fig.width=15, fig.height=6, fig.align='center'}
 
 # Read in the SARS-CoV-2 gene annotations
 annotation.df = read_csv(annotation.data)
@@ -185,14 +196,14 @@ depth.of.coverage.df %>%
         strip.text.x = element_blank()) 
 
 
+ggsave("../../results/figures/single_plot_coverage_dist.svg", device = svg(), width = 11, height = 5)
 
-    
-
+  
 ```
 
-This will be the second supplemental figure. It's good for both showing the pattern of coverage over the genome, and the samples that failed our filters. 
+Below is the same plot as above, except that it's split between the individual samples. The maximum number of reads is capped at 1000 reads and a line is drawn at 100X coverage, which was our requirement for minimum coverage. 
 
-```{r Coverage Pattern Facet, message=FALSE, warning=FALSE, fig.width=20, fig.height=10, fig.align='center'}
+```{r Faceted Coverage Distribution, message=FALSE, warning=FALSE, fig.width=20, fig.height=10, fig.align='center'}
 
 # Generate positions for lables 
 label = annotation.df %>% 
@@ -208,7 +219,7 @@ depth.of.coverage.df %>%
   mutate(Depth = ifelse(Depth > 1000, 1000, Depth)) %>% 
   ggplot(aes(x = (Start+Stop)/2, y = Depth, group = Run, col = `Low Coverage`))+
     geom_line() + 
-    geom_hline(yintercept = 200, col = "blue", linetype = 2) + 
+    geom_hline(yintercept = 100, col = "blue", linetype = 2) + 
     facet_wrap(~Accession, ncol = 3) + 
     scale_color_manual(values = c("#080000","#b80000")) +
     xlab("Genomic Position") +
@@ -258,7 +269,7 @@ depth.of.coverage.df %>%
     theme(legend.position="none") +
     theme(axis.text.x=element_text(angle=25, hjust=1)) 
     
-ggsave("../../config/figures/supplemental-2.svg", device = svg(), width = 20, height = 20)
+ggsave("../../results/figures/faceted_plot_coverage_dist.svg", device = svg(), width = 20, height = 20)
 
 ```
 
