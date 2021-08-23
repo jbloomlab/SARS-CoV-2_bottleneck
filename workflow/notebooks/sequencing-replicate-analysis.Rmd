@@ -1,15 +1,11 @@
 ---
-title: "Replicate Analysis"
+title: "3. Replicate Analysis"
 author: "Will Hannon"
 date: "1/11/2021"
 output: html_document
 ---
 
-This notebook contains an analysis of replicate sequencing runs for the `SARS-CoV-2_Bottleneck` project. The main goals of this notebook are to characterize: 
-
-1. Concordance between replicate sequencing runs. 
-2. Identify samples with poor concordance that should be excluded from the analysis. 
-3. Determine the ideal heuristic thresholds for sequencing depth and allele count. 
+The goal of this notebook is compare the variants called between sequencing replicates. Replicates were performed from the same samples, but with different RT reactions. This has been shown to effectively screen out low-quality samples where the concordance between replicates is poor. 
 
 ```{r Setup, include=FALSE}
 require("knitr")
@@ -39,17 +35,22 @@ invisible(lapply(c(packages), library, character.only = TRUE))
 # Data from pysam/python script. It contains the % of each nucleotide
 # at every covered position in the genome. This is a huge file.
 pysam.data = "../../results/pileup/pysam-variants.csv"
+
 # Data from lofreq
 variant.data = "../../results/variants/variants.csv"
+
 # Samtools average depth
 average.depth.data = "../../results/coverage/merged.average.depth" 
 
 ```
 
+Building on the previous two analyses, I removed any samples from the analysis when they fail the 'completeness'/coverage requirement of more than 80% of the genome being covered by 100X or more reads. 
+
 ```{r Filter Low Depth Sample, warning=F, message=F}
 
 # Low quality samples - get the accessions for the samples that failed basic quality control. 
-# Presently, this anything that has 20% of the genome covered by less than *200* reads. 
+# Presently, this anything that has 20% of the genome covered by less than *100* reads. 
+
 average.depth.df = read.table(average.depth.data, header = T) %>% 
   separate(Accession, into = c("Accession", "Replicate")) %>% 
   mutate(Run = paste0(Accession, Replicate))
@@ -59,8 +60,7 @@ low.coverage.runs = average.depth.df %>% filter(Percent < 80) %>% pull(Run)
 
 ```
 
-
-```{r Format Pysam data, include=FALSE, warning=FALSE, message=FALSE}
+```{r Format Pysam data, warning=FALSE, message=FALSE}
 
 # Import the data splitting the accession ID into the Accession and the Replicate
 pysam.df = read_csv(pysam.data) %>% 
@@ -74,12 +74,14 @@ pysam.to.join.df = pysam.df %>%
 pysam.combined.df = full_join(
   filter(pysam.to.join.df, REPLICATE == "1"),
   filter(pysam.to.join.df, REPLICATE == "2"), 
-  by = c("ACCESSION", "POS", "REF", "ALT", "EFFECT", "GENE", "CODON_POS"),
+  by = c("ACCESSION", "POS", "REF", "ALT", "EFFECT", "GENE", "CODON_POS", "AA_CHANGE"),
   suffix = c(".one", ".two")
   ) %>% 
   select(!c("REPLICATE.one", "REPLICATE.two")) %>% 
-  mutate_each(list( ~ replace(., which(is.na(.)), 0))) %>% 
-  mutate(Coverage = ifelse(ACCESSION %in% low.coverage.samples, "Low", "High"))
+  mutate(AF.one = if_else(is.na(AF.one), 0, AF.one)) %>% 
+  mutate(AF.two = if_else(is.na(AF.two), 0, AF.two)) %>% 
+  mutate(DP.one = if_else(is.na(DP.one), 0, DP.one)) %>% 
+  mutate(DP.two = if_else(is.na(DP.two), 0, DP.two)) 
 
 
 
@@ -103,30 +105,37 @@ variant.combined.df = full_join(
   suffix = c(".one", ".two")
   ) %>% 
   select(!c("REPLICATE.one", "REPLICATE.two")) %>% 
-  mutate_each(list( ~ replace(., which(is.na(.)), 0))) %>% 
-  mutate(Coverage = ifelse(ACCESSION %in% low.coverage.samples, "Low", "High"))
+  mutate(AF.one = if_else(is.na(AF.one), 0, AF.one)) %>% 
+  mutate(AF.two = if_else(is.na(AF.two), 0, AF.two)) %>% 
+  mutate(DP.one = if_else(is.na(DP.one), 0, DP.one)) %>% 
+  mutate(DP.two = if_else(is.na(DP.two), 0, DP.two)) 
+
 
 
 ```
 
 ## Pipeline Comparison
 
-Here I compare the variant callers to one another. I only look at SNPs because I've only benchmarked the pipeline of SNPs. It's a good sign tha the largest set is the overalp of all callers. Otherwise, there are no variants called by Pysam that are absent from other callers, which is a good tidbit. 
+Here I compare the variant callers to one another. I only look at SNPs because I've only benchmarked the pipeline of SNPs. Additionaly, I excluded all sites with less than 100X depth, 2% AF, and from samples that didn't meet the studies coverage requirements. 
+
+It's a good sign tha the largest set is the overalp of all callers. Otherwise, there are no variants called by Pysam that are absent from other callers, which is also a good sign. It seems like iVar and my method hav a significant number that overlap but are absent from other callers. These are probably the two least stringent approaches, so this is to be expected. 
+
+Main takeaway - *all of the variants that I called with Pysam have been called by at least one other benchmarked variant calling approach.* 
 
 ```{r Compare Callers, message=F, warning=F}
 
-pysam.df %>% 
+upset.plt = pysam.df %>% 
   mutate(Caller = "pysam") %>% 
   select(colnames(variant.df)) %>% 
   rbind(., variant.df) %>%  
-  filter(AF >= 0.02) %>% 
   mutate(Type = case_when(nchar(REF) > 1 ~ "Del",
                           nchar(ALT) > 1 ~ "Ins",
                           nchar(REF) == 1 ~ "SNP")) %>% 
   filter(Type == "SNP") %>% 
-  filter(DP >= 100) %>% 
-  filter(AF >= 0.02) %>% 
-  mutate(SNP= paste0(REF, POS, ALT)) %>% 
+  filter(DP >= 100) %>% # More than 100X
+  filter(AF >= 0.02) %>% # More than 2% AF
+  filter(!ACCESSION %in% low.coverage.samples) %>% # Not a "low coverage sample"
+  mutate(SNP = paste0(REF, POS, ALT)) %>% 
   mutate(Identifier = paste(ACCESSION, REPLICATE, SNP, sep = "-")) %>% 
   select(Identifier, Caller) %>% 
   distinct() %>% 
@@ -139,13 +148,21 @@ pysam.df %>%
                           "pysam"), sets.bar.color = "#56B4E9",
       order.by = "freq", empty.intersections = "on", text.scale = 1.5)
 
+upset.plt
+
+png(filename = "../../results/figures/variant_caller_upset_plot.png", width = 7, height = 5)
+upset.plt
+dev.off()
+
 ```
 
-## Concordance
+## Concordance Between Replicates
 
-Below is a plot of the concordance of allele frequency between the sequencing replicates of all libraries. TODO: add correlation coeff. 
+The point of having replicates from the same samples with different reverse transcription reactions and library preps is to assess the quality of these samples. If variants are called at substantiall different frequences between replicates, or if variants are entirely abscent from replicates, it's possible that (a) those variants are spurious, and (b) those samples have low viral template numbers. 
 
-```{r}
+To assess this, I looked at the concordance between the allele frequencies from the merged samples. Below is a plot of the concordance of allele frequency between the sequencing replicates of all libraries with *Pysam/Python* variant calling. 
+
+```{r Concordance, message = F, warning = F, fig.width= 25, fig.height= 20, fig.align='center'}
 
 concordance_plot_list = list()
 
@@ -217,13 +234,15 @@ final_plot = gridExtra::grid.arrange(arrangeGrob(grobs = concordance_plot_list,
                           bottom = textGrob("Allele Frequency Replicate One", hjust = .5,
                                             gp = gpar(col = "black", fontsize = 35))))
 
-ggsave("../../config/figures/figure-2.png", plot = final_plot, width = 25, height = 20, dpi = 300, units = "in")
+ggsave("../../results/figures/replicate_comparison_pysam.png", plot = final_plot, width = 25, height = 20, dpi = 300, units = "in")
 
 ```
 
-Supplemental figure showing which samples won't be included in the analysis because the allele frequences between replicates are to dissimilar. In this case, I cut off the long tail. All samples that had more than 0.025 mean difference between SNPs were not included in the downstream analysis. 
+In order to determine rationally which samples should be included and which should be excluded, I screen samples based on the average deviation between replicate frequencies. This method weights deviation amoung high frequency variants more than low frequency variants. 
 
-```{r}
+This histogram shows which samples won't be included in the analysis because the allele frequences between replicates are to dissimilar. In this case, I cut off the long tail. All samples that had **more than 0.025 mean difference between SNPs** were not included in the downstream analysis. 
+
+```{r Concordance Difference Histogram, message = F, warning = F, fig.width= 7, fig.height= 5, fig.align='center'}
 
 # Cut off the long tail of the distribution
 pysam.combined.df %>% 
@@ -244,7 +263,7 @@ pysam.combined.df %>%
     theme(panel.background = element_rect(fill = NA, color = "black")) +
     theme(plot.title = element_text(hjust = 0.5))
   
-pysam.combined.df %>% 
+poor.concordace.samples = pysam.combined.df %>% 
   filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
   filter(DP.one >= 100 & DP.two >= 100) %>% 
   select(ACCESSION, REF, POS, ALT, DP.one, DP.two, AF.one, AF.two) %>% 
@@ -254,7 +273,58 @@ pysam.combined.df %>%
   filter(MEAN_DIFF >= 0.025) %>% 
   pull(ACCESSION)
 
-ggsave("../../config/figures/supplemental-figure-3.png", width = 7, height = 5, dpi = 300, units = "in")
+ggsave("../../results/figures/average_allele_difference.svg", width = 7, height = 5, dpi = 300, units = "in")
+
+poor.concordace.samples[which(!poor.concordace.samples %in% low.coverage.samples)]
+```
+
+## Concordance Between Callers
+
+Finally, I wanted to see if the variants called by one caller have better concordance on average than another caller. 
+
+```{r Concordance Difference All Callers, message = F, warning = F, fig.width= 10, fig.height= 10, fig.align='center'}
+
+
+all.caller.df = pysam.combined.df %>% 
+  mutate(Caller = "pysam") %>% 
+  select(colnames(variant.combined.df)) %>% 
+  rbind(variant.combined.df) %>% 
+  mutate(Type = case_when(nchar(REF) > 1 ~ "Del",
+                          nchar(ALT) > 1 ~ "Ins",
+                          nchar(REF) == 1 ~ "SNP")) %>% 
+  filter(Type == "SNP")  %>% 
+  filter(!ACCESSION %in% low.coverage.samples)
+
+included.variants.df = all.caller.df %>% 
+  filter(DP.one >= 100 & DP.two >= 100) %>% 
+  filter(AF.one >= 0.02 & AF.two >= 0.02)
+  
+excluded.variants.df = all.caller.df %>% 
+  filter(DP.one < 100 | DP.two < 100) %>% 
+  filter(AF.one < 0.02 | AF.two < 0.02)
+
+included.variants.df  %>% 
+  ggplot(aes(x = AF.one, y = AF.two)) + 
+    geom_point(data = filter(excluded.variants.df), aes(x = AF.one, y = AF.two), size = 1, col = "#b80000", alpha = 0.5) +
+    geom_point(size = 4, alpha = .75) +
+    geom_abline(intercept=0, col = "blue") + 
+    geom_hline(yintercept = 0.02, col = "blue", linetype = 2) + 
+    geom_vline(xintercept = 0.02, col = "blue", linetype = 2) + 
+    facet_wrap(~Caller) +
+    scale_color_manual(values = c("#080000","#b80000")) +
+    scale_x_continuous(limits = c(0, 1)) + 
+    scale_y_continuous(limits = c(0, 1)) + 
+    xlab("") +
+    ylab("") +
+    theme_classic() +
+    theme(text=element_text(size= 30,  family="Helvetica")) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
+    theme(panel.background = element_rect(fill = NA, color = "black")) +
+    theme(plot.title = element_text(hjust = 0.5)) + 
+    coord_fixed()
+
+ggsave("../../results/figures/variant_concordance_call_comparison.png", width = 10, height = 10, dpi = 300, units = "in")
 
 ```
 
+`Varscan` and `Pysam` look pretty similar. iVar has terrible concordance, no idea what's going on there. It could have something to do with how the caller handles insertions and deletions in reads? `Lofreq` has a unique cluster of variants that are above 50% and below 100%. These are mostly at position 11803 and 13, which are fixed in the other tools. I don't know why it's finding these reversions, but this has been seen in other papers (Braun et. al., 2021 (a/b)).
