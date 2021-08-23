@@ -1,11 +1,11 @@
 ---
-title: "Varaint Features"
+title: "4. Intrahost Variant Features"
 author: "Will Hannon"
 date: "1/11/2021"
 output: html_document
 ---
 
-This notebook contains an analysis of the features of minor variants for the `SARS-CoV-2_Bottleneck` project. The main goals of this notebook are to characterize: 
+The goal of this notebook is to look at the features of the intrahost variants from each of the boat passangers. The idea is to see where these fall in the genome, how many are there per sample, and what's the distribution of frequencies. 
 
 ```{r Setup, include=FALSE}
 require("knitr")
@@ -17,7 +17,7 @@ knitr::opts_chunk$set(echo = FALSE)
 ## ==== Install Required Packages ==== ##
 
 ## List of all packages needed -- non-BioManager installed
-packages = c("tidyverse", "scales", "RColorBrewer")
+packages = c("tidyverse", "scales", "RColorBrewer", "ggrepel")
 ## Check that packages are installed, if not, install them
 installed_packages <- packages %in% rownames(installed.packages())
 if (any(installed_packages == FALSE)) {
@@ -36,7 +36,7 @@ invisible(lapply(c(packages), library, character.only = TRUE))
 # at every covered position in the genome. This is a huge file.
 pysam.data = "../../results/pileup/pysam-variants.csv"
 
-# Data from lofreq
+# Data from lofreq, varscan, and ivar
 variant.data = "../../results/variants/variants.csv"
 
 # Samtools average depth
@@ -52,34 +52,30 @@ sample_metadata = "../../config/data/Boat_Sample_Metadata.csv"
 
 I'll format the variants that I called using the pileup function of the Python library `Pysam`. I'll also join the replicates.
 
-```{r Format data, warning=FALSE, message=FALSE}
+```{r Format Pysam data, warning=FALSE, message=FALSE}
 
 # Import the data splitting the accession ID into the Accession and the Replicate
 pysam.df = read_csv(pysam.data) %>% 
   separate(ACCESSION, into = c("ACCESSION", "REPLICATE"), sep = "_") %>% 
   mutate(REPLICATE = as.factor(REPLICATE))
 
-# Get only the consensus alleles
-pysam.consensus.df = pysam.df %>% 
-  filter(CONS == TRUE)
+# Join the custom pysam SNPs by replicate
+pysam.to.join.df = pysam.df %>% 
+  select(!c("SNP", "CONS"))
 
-# Get only the SNPs
-pysam.snp.df = pysam.df %>% 
-  filter(SNP == TRUE) 
-
-# Get the prevalence of SNPs between replicates by filtering 
-# and joining by the samples, position in the genome, reference
-# allele (this is redundant), and the alternative allele (SNP).
-pysam.combined.snps.df = full_join(
-  filter(pysam.snp.df, REPLICATE == "1"),
-  filter(pysam.snp.df, REPLICATE == "2"), 
-  by = c("ACCESSION", "POS", "REF", "ALT"),
+pysam.combined.df = full_join(
+  filter(pysam.to.join.df, REPLICATE == "1"),
+  filter(pysam.to.join.df, REPLICATE == "2"), 
+  by = c("ACCESSION", "POS", "REF", "ALT", "EFFECT", "GENE", "CODON_POS", "AA_CHANGE"),
   suffix = c(".one", ".two")
   ) %>% 
-  select(!c("REPLICATE.one", "REPLICATE.two", "SNP.one", "SNP.two", "CONS.one", "CONS.two")) %>% 
-  mutate_each(list( ~ replace(., which(is.na(.)), 0)))
+  select(!c("REPLICATE.one", "REPLICATE.two")) %>% 
+  mutate(AF.one = if_else(is.na(AF.one), 0, AF.one)) %>% 
+  mutate(AF.two = if_else(is.na(AF.two), 0, AF.two)) %>% 
+  mutate(DP.one = if_else(is.na(DP.one), 0, DP.one)) %>% 
+  mutate(DP.two = if_else(is.na(DP.two), 0, DP.two)) 
 
-print(head(pysam.combined.snps.df))
+print(head(pysam.combined.df))
 ```
 
 Then, I'll do the sample with the variants called with three variant calling softwares: `lofreq`, `ivar`, and `varscan`. Here, I also standardize the column names with those of the pysam variants. 
@@ -95,16 +91,17 @@ variant.df = read_csv(variant.data) %>%
 variant.combined.df = full_join(
   filter(variant.df, REPLICATE == "1"),
   filter(variant.df, REPLICATE == "2"), 
-  by = c("ACCESSION", "POS", "REF", "ALT", "EFFECT", "GENE", "AA_CHANGE", "Caller"),
+  by = c("ACCESSION", "POS", "REF", "ALT", "Caller", "EFFECT", "GENE", "AA_CHANGE"),
   suffix = c(".one", ".two")
   ) %>% 
   select(!c("REPLICATE.one", "REPLICATE.two")) %>% 
-  mutate_each(list( ~ replace(., which(is.na(.)), 0)))
+  mutate(AF.one = if_else(is.na(AF.one), 0, AF.one)) %>% 
+  mutate(AF.two = if_else(is.na(AF.two), 0, AF.two)) %>% 
+  mutate(DP.one = if_else(is.na(DP.one), 0, DP.one)) %>% 
+  mutate(DP.two = if_else(is.na(DP.two), 0, DP.two)) 
 
 print(head(variant.combined.df))
 ```
-
-Here, I've formated the annotations of gene location and position for plotting the genome as a diagram below.
 
 ```{r Annotations, message=F, warning=F, fig.width=25, fig.height=20, fig.align="center"}
 
@@ -153,7 +150,7 @@ I'll also get a list of all of the samples that have poor concordance between re
 
 ```{r Filter Poor Concordance Samples, warning=F, message=F}
 
-poor.concordance.samples = pysam.combined.snps.df %>% 
+poor.concordance.samples = pysam.combined.df %>% 
   filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
   filter(DP.one >= 100 & DP.two >= 100) %>% 
   select(ACCESSION, REF, POS, ALT, DP.one, DP.two, AF.one, AF.two) %>% 
@@ -162,6 +159,8 @@ poor.concordance.samples = pysam.combined.snps.df %>%
   summarise(MEAN_DIFF = mean(DIFF)) %>% 
   filter(MEAN_DIFF >= 0.025) %>% 
   pull(ACCESSION)
+
+poor.concordance.samples = poor.concordance.samples[which(!poor.concordance.samples %in% low.coverage.samples)]
 
 print(poor.concordance.samples)
 
@@ -176,22 +175,21 @@ Next, I wanted to select the main variants to include in the downstream analyses
 
 Finally, the variants are combined between the replicates by averaging the allele frequency. Then, alleles present at more than 50% frequency and less than 98% frequency are flipped to their non-consensus counterparts. 
 
-```{r Prepare Final Variants, warning=F, message=F}
+```{r Prepare Final Pysam Variants, warning=F, message=F}
 
 # Final samples and mutations to analyze: 
 # Remove low coverage samples
 # Remove alleles below 2%
 # Remove alleles with less than 100X coverage
-# Remove samples with poor replicate condordance: 10089, 10117, *10088*
 
-selected.variant.df = pysam.combined.snps.df %>% 
+selected.variant.df = pysam.combined.df %>% 
   filter(!(ACCESSION %in% low.coverage.samples)) %>% 
   filter(!(ACCESSION %in% poor.concordance.samples)) %>% 
   filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
   filter(DP.one >= 100 & DP.two >= 100) %>% 
   # Allele frequency is the average of the two replicates
   mutate(AF = (AF.one + AF.two)/2) %>% 
-  select(ACCESSION, POS, REF, ALT, AF, AA_CHANGE = "AA_CHANGE.one", EFFECT = "EFFECT.one", GENE = "GENE.one") 
+  select(ACCESSION, POS, REF, ALT, AF, AA_CHANGE, EFFECT, GENE) 
 
 # Filp the consensus variants
 fipped.cons = selected.variant.df %>% 
@@ -211,9 +209,49 @@ final.variant.df = rbind(filter(selected.variant.df, AF < 0.5), fipped.cons) %>%
 
 ```
 
-Lets compare the number of SNPs called in each method to the Ct value of the initial samples. iSNVs are the SNPs that are present in both replicates with more than 100 reads covering them, more than 2% freq, SNPs only, and less than 50%.
+```{r Prepare Final Caller Variants, warning=F, message=F}
 
-```{r Pysam iSNVs vs. Ct, warning=F, message=F}
+# Final samples and mutations to analyze: 
+# Remove low coverage samples
+# Remove alleles below 2%
+# Remove alleles with less than 100X coverage
+
+caller.selected.variant.df = variant.combined.df %>% 
+  filter(!(ACCESSION %in% low.coverage.samples)) %>% 
+  filter(!(ACCESSION %in% poor.concordance.samples)) %>% 
+  mutate(Type = case_when(nchar(REF) > 1 ~ "Del",
+                          nchar(ALT) > 1 ~ "Ins",
+                          nchar(REF) == 1 ~ "SNP")) %>% 
+  filter(Type == "SNP") %>% 
+  filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
+  filter(DP.one >= 100 & DP.two >= 100) %>% 
+  # Allele frequency is the average of the two replicates
+  mutate(AF = (AF.one + AF.two)/2) %>% 
+  select(ACCESSION, POS, REF, ALT, AF, AA_CHANGE, EFFECT, GENE, Caller) 
+
+# Filp the consensus variants
+caller.fipped.cons = caller.selected.variant.df %>% 
+  filter(AF >= 0.5) %>% 
+  rename(ALT = "REF", REF = "ALT") %>% 
+  mutate(AF = (1 - AF)) %>% 
+  filter(AF >= 0.02) %>% 
+  separate(AA_CHANGE, into = c("WT", "AAPOS"),
+           sep = "((?<=[A-Za-z])(?=[0-9]))") %>% 
+  separate(AAPOS, into = c("AAPOS", "MUT"),
+           sep = "((?<=[0-9])(?=[A-Za-z]))") %>% 
+  mutate(AA_CHANGE = paste0(MUT, AAPOS, WT)) %>% 
+  select(!c("MUT", "WT", "AAPOS"))
+
+caller.final.variant.df = rbind(filter(caller.selected.variant.df, AF < 0.5), caller.fipped.cons) %>% 
+  mutate(SNV = paste0(REF, POS, ALT))
+
+```
+
+## SNPs vs. Ct
+
+Ideally, I would have a direct measurement of the number of viral transcripts in these samples to compare with iSNVs. However, all I have is the Ct values from the original samples as a benchmark. The goal here is to see if there is a correlation between Ct and intrahost variants that are called in both samples. Included iSNVs are the SNPs that are present in both replicates with more than 100X reads covering them, more than 2% frequency, no InDels, and not major variants (less than 50% frequency).
+
+```{r Pysam iSNVs vs. Ct, warning=F, message=F, width = 7, height = 5}
 
 ct_df = read_csv(sample_metadata) %>% 
   rename("ACCESSION" = SpID, "Ct" = avg_ct) %>% 
@@ -231,47 +269,22 @@ left_join(iSNV_count.df, ct_df, by = "ACCESSION") %>%
     ylab('iSNV Count') + 
     xlab('Cycle Threshold') +
     theme_bw(18)
-  
+
+ggsave(filename = "../../results/figures/pysam_snps_vs_ct.svg", width = 7, height = 5)
+
 ```
 
 It's clear that Ct value doesn't correlate with the number of iSNVs called after filtering. This could have to do with (1) Ct value not being a close enough proxy for viral template number, (2) The number of iSNVs being too low to record any signal here, or (3) the Ct value being low enough across all these samples that RNA levels aren't the limiting factor in our sensitivity to call variants. 
 
-```{r Variant Caller iSNVs vs. Ct, warning=F, message=F}
+```{r Variant Caller iSNVs vs. Ct, warning=F, message=F, width = 7, height = 5}
 
-variant.selected.variant.df = variant.combined.df %>% 
-  mutate(Type = case_when(nchar(REF) > 1 ~ "Del",
-                          nchar(ALT) > 1 ~ "Ins",
-                          nchar(REF) == 1 ~ "SNP")) %>% 
-  filter(Type == "SNP") %>% 
-  filter(!(ACCESSION %in% low.coverage.samples)) %>% 
-  filter(!(ACCESSION %in% poor.concordance.samples)) %>% 
-  filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
-  filter(DP.one >= 100 & DP.two >= 100) %>% 
-  # Allele frequency is the average of the two replicates
-  mutate(AF = (AF.one + AF.two)/2) %>% 
-  select(ACCESSION, POS, REF, ALT, AF, AA_CHANGE, EFFECT, GENE, Caller) 
+all.final.variants.df = rbind(caller.final.variant.df, select(mutate(final.variant.df, Caller = "pysam"), colnames(caller.final.variant.df)))
 
-# Filp the consensus variants
-variant.fipped.cons = variant.selected.variant.df %>% 
-  filter(AF >= 0.5) %>% 
-  rename(ALT = "REF", REF = "ALT") %>% 
-  mutate(AF = (1 - AF)) %>% 
-  filter(AF >= 0.02) %>% 
-  separate(AA_CHANGE, into = c("WT", "AAPOS"),
-           sep = "((?<=[A-Za-z])(?=[0-9]))") %>% 
-  separate(AAPOS, into = c("AAPOS", "MUT"),
-           sep = "((?<=[0-9])(?=[A-Za-z]))") %>% 
-  mutate(AA_CHANGE = paste0(MUT, AAPOS, WT)) %>% 
-  select(!c("MUT", "WT", "AAPOS"))
-
-variant.final.variant.df = rbind(filter(variant.selected.variant.df, AF < 0.5), variant.fipped.cons) %>% 
-  mutate(SNV = paste0(REF, POS, ALT))
-
-iSNV_count.df = variant.final.variant.df %>% 
+all_iSNV_count.df = all.final.variants.df %>% 
   group_by(ACCESSION, Caller) %>% 
   count()
 
-left_join(iSNV_count.df, ct_df, by = "ACCESSION") %>% 
+left_join(all_iSNV_count.df, ct_df, by = "ACCESSION") %>% 
   ggplot(aes(x = Ct, y = n)) +
     geom_point(size = 3) +
     facet_wrap(~Caller) +
@@ -280,11 +293,17 @@ left_join(iSNV_count.df, ct_df, by = "ACCESSION") %>%
     xlab('Cycle Threshold') +
     theme_bw(18)
 
+ggsave(filename = "../../results/figures/all_callers_snps_vs_ct.svg", width = 7, height = 5)
+
 ```
 
 Although the number of "passing" variants is a little bit different between the callers, the relationship between iSNVs and Ct holds in all three methods. 
 
-```{r}
+## Average Number of iSNVs
+
+I wanted to see how many intrahost variants there are on average across samples. Just like above, these needed to pass quality controls. 
+
+```{r Variant Caller iSNVs vs. Ct, warning=F, message=F, width = 7, height = 5}
 
 average.number.of.minor.variants = final.variant.df %>% 
   group_by(ACCESSION) %>% 
@@ -303,13 +322,17 @@ final.variant.df %>%
     xlab('Number of minor variants') +
     theme_bw(18)
 
-ggsave(filename = "../../config/figures/figure-3-B.svg", width = 6, height = 4)
+ggsave(filename = "../../results/figures/average_number_of_iSNVs.svg", width = 7, height = 5)
+
 ```
 
-There is a mean of ~ 4 minor variants per sample. 
+There is a mean of ~ 3 minor variants per sample. 
 
+## Average Variant Frequency 
 
-```{r}
+Next, I wanted to look at the average frequency of these intrahost variants, as well as their distributioon across the creq members. 
+
+```{r MAF spectrum, warning=F, message=F, width = 7, height = 5}
 
 final.variant.df %>% 
   ggplot(aes(x = AF)) + 
@@ -319,58 +342,69 @@ final.variant.df %>%
     theme_bw(18) +
     theme(plot.title = element_text(hjust = 0.5)) 
   
-ggsave(filename = "../../config/figures/figure-3-C.svg", width = 6, height = 4)
+ggsave(filename = "../../config/figures/MAF_specturm.svg", width = 6, height = 4)
 
 ```
 
+The vast majority of intrahost variants are present at less than 10% frequency. However, there are some present at quite high frequency, even approaching 50%. These are particularly interesting if they appear elsewhere in the phylogeny of the boat samples or washington state. 
 
-```{r Lofreq Minor Variants Distribution, echo=F, message=F, warning=F, fig.width=11, fig.height=4, fig.align="center"}
+## Variant Position 
+
+This next plot shows the positions of each variant in the genome, colored by what the mutational effect is, and labeled with the sample that it belongs to. Not a particularly useful plot, but most papers of intrahost mutations have some version of these. At least you can see that variants at low frequency are much more likely to be shared than those at high frequency. This discepecny will be adressed more specifically in `shared-variants-analysis.Rmd`. 
+
+```{r Minor Variants Distribution, message=F, warning=F, fig.width=18, fig.height=6, fig.align="center"}
+
+# Color scheme
+effect_colors = c("#990505", "#13a13b")
 
 label = annotation.df %>% 
   mutate(POS = (start+end)/2) %>% 
-  mutate(AF = -(.1/2)) %>% 
+  mutate(AF = -(.075/2)) %>% 
   select(gene, POS, AF) 
 
-selected.variant.df %>% 
-  filter(AF <= .98) %>% 
-  ggplot(aes(x = POS, y = AF, col = ACCESSION))+
-    geom_point(size = 4, stroke = 2, alpha = 0.5) +
+final.variant.df %>% 
+  mutate(EFFECT = if_else(is.na(EFFECT), "synonymous", EFFECT)) %>% 
+  ggplot(aes(x = POS, y = AF, col = EFFECT, fill = EFFECT))+
+    geom_point(stat="identity", size = 3, stroke = 2, alpha = 0.5) + 
+    geom_bar(stat="identity", position = position_identity(), width=.01) +
+    geom_text_repel(aes(label = ACCESSION)) +
     xlab("Position") +
     ylab("Allele Frequency") +
     scale_x_continuous(breaks=c(0,5000,10000,15000,20000,25000,30000))  +
-    scale_color_discrete(name = "Crewmembers") +
-    annotate("rect", xmin = 0, xmax = ORF1ab[[2]]-1, ymin = -.1, ymax = -.01 ,
-             alpha = .2, fill = "grey", col = "black", size = .1) +
-    annotate("rect", xmin = ORF1ab[[2]], xmax = ORF1ab[[3]], ymin =  -.1, ymax = -.01 ,
+    scale_color_manual(name = "Effect", values=effect_colors) +
+    scale_fill_manual(name = "Effect", values=effect_colors) +
+    annotate("rect", xmin = 0, xmax = ORF1ab[[2]]-1, ymin = -.075, ymax = -.01 ,
+             alpha = .2, fill = "grey", col = "black", size = .1) + 
+    annotate("rect", xmin = ORF1ab[[2]], xmax = ORF1ab[[3]], ymin =  -.075, ymax = -.01 ,
                alpha = .2, fill = "dodgerblue2", col = "black", size = .1) +
     annotate(geom = "text", x = label[[2]][1], y = label[[3]][1], label = label[[1]][1], family = "mono", size = 7) +
-    annotate("rect", xmin = Spike[[2]], xmax = Spike[[3]], ymin =   -.1, ymax = -.01 ,
+    annotate("rect", xmin = Spike[[2]], xmax = Spike[[3]], ymin = -.075, ymax = -.01 ,
              alpha = .2, fill = "yellow3", col = "black", size = .1) +
     annotate(geom = "text", x = label[[2]][2], y = label[[3]][2], label = label[[1]][2], family = "mono", size = 7) +
-    annotate("rect", xmin = ORF3a[[2]], xmax = ORF3a[[3]], ymin =   -.1, ymax = -.01 ,
+    annotate("rect", xmin = ORF3a[[2]], xmax = ORF3a[[3]], ymin = -.075, ymax = -.01 ,
              alpha = .2, fill = "#FF7F00", col = "black", size = .1) +
     annotate(geom = "text", x = label[[2]][3], y = label[[3]][3], label = "3a", family = "mono", size = 7) +
-    annotate("rect", xmin = Envelope[[2]], xmax = Envelope[[3]], ymin =   -.1, ymax = -.01 ,
+    annotate("rect", xmin = Envelope[[2]], xmax = Envelope[[3]], ymin = -.075, ymax = -.01 ,
              alpha = .2, fill =  "#6A3D9A", col = "black", size = .1) +
     annotate(geom = "text", x = label[[2]][4], y = label[[3]][4], label = "E", family = "mono", size = 7) +
-    annotate("rect", xmin = Membrane[[2]], xmax = Membrane[[3]], ymin =   -.1, ymax = -.01 ,
+    annotate("rect", xmin = Membrane[[2]], xmax = Membrane[[3]], ymin = -.075, ymax = -.01 ,
              alpha = .2, fill =  "green4", col = "black", size = .1) +
     annotate(geom = "text", x = label[[2]][5], y = label[[3]][5], label = "M", family = "mono", size = 7) +
-    annotate("rect", xmin = ORF6[[2]], xmax = ORF6[[3]], ymin =  -.1, ymax = -.01 ,
+    annotate("rect", xmin = ORF6[[2]], xmax = ORF6[[3]], ymin = -.075, ymax = -.01 ,
              alpha = .2, fill = "#E31A1C", col = "black", size = .1) +
     annotate(geom = "text", x = label[[2]][6], y = label[[3]][6], label = "6", family = "mono", size = 7) +
-    annotate("rect", xmin = ORF7a[[2]], xmax = ORF7a[[3]], ymin =   -.1, ymax = -.01 ,
+    annotate("rect", xmin = ORF7a[[2]], xmax = ORF7a[[3]], ymin = -.075, ymax = -.01 ,
              alpha = .2, fill = "#FB9A99", col = "black", size = .1) +
     #annotate(geom = "text", x = label[[2]][7], y = label[[3]][7], label = "7a", family = "mono", size = 7) +
-    annotate("rect", xmin = ORF8[[2]], xmax = ORF8[[3]], ymin =  -.1, ymax = -.01 ,
+    annotate("rect", xmin = ORF8[[2]], xmax = ORF8[[3]], ymin = -.075, ymax = -.01 ,
              alpha = .2, fill = "orchid1", col = "black", size = .1) +
     annotate(geom = "text", x = label[[2]][8], y = label[[3]][8], label = "8", family = "mono", size = 7) +
-    annotate("rect", xmin = Nucleocapsid[[2]], xmax = Nucleocapsid[[3]], ymin =   -.1, ymax = -.01 ,
+    annotate("rect", xmin = Nucleocapsid[[2]], xmax = Nucleocapsid[[3]], ymin = -.075, ymax = -.01 ,
              alpha = .2, fill = "maroon", col = "black", size = .1) +
     annotate(geom = "text", x = label[[2]][9], y = label[[3]][9], label = "N", family = "mono", size = 7) +
-    annotate("rect", xmin = ORF10[[2]], xmax = ORF10[[3]], ymin =   -.1, ymax = -.01 ,
+    annotate("rect", xmin = ORF10[[2]], xmax = ORF10[[3]], ymin = -.075, ymax = -.01 ,
              alpha = .2, fill =  "skyblue2", col = "black", size = .1) +
-    annotate("rect", xmin = ORF10[[3]]+1, xmax = 29903, ymin =  -.1, ymax = -.01 ,
+    annotate("rect", xmin = ORF10[[3]]+1, xmax = 29903, ymin = -.075, ymax = -.01 ,
              alpha = .2, fill = "grey", col = "black", size = .1) +
     annotate(geom = "text", x = -200, y = label[[3]][1], label = "5'", family = "mono", size = 7) +
     annotate(geom = "text", x = 30200, y = label[[3]][1], label = "3'", family = "mono", size = 7) +
@@ -380,29 +414,13 @@ selected.variant.df %>%
     theme(legend.box.background = element_rect(colour = "black")) +
     theme(text=element_text(size=24)) +
     theme(plot.title = element_text(hjust = 0.5)) +
-    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
-    theme(axis.text.x = element_text(hjust= 1)) 
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) 
 
 ggsave("../../config/figures/figure-3-A.svg", width = 18, height = 6, dpi = 300, units = "in")
 
 ```
 
-
-```{r}
-
-final.variant.df %>% 
-  group_by(SNV) %>% 
-  count() %>% 
-  arrange(-n) %>% 
-  ggplot(aes(x = n)) + 
-    geom_histogram(bins = 30) + 
-    xlab("Number of samples sharing site") +
-    ylab("Number of sites") +
-    scale_x_continuous(breaks = c(2, 4, 6, 8)) +
-    theme_bw(20)
-  
-```
-
+## Everything below belongs in a different notebook. 
 
 ```{r Percent by sample, message=FALSE, warning=FALSE, fig.width=8, fig.height=5, fig.align='center'}
 
