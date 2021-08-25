@@ -1,5 +1,5 @@
 ---
-title: "Quality Control"
+title: "2. Quality Control"
 author: "Will Hannon"
 date: "1/11/2021"
 output: html_document

@@ -1,10 +1,11 @@
 ---
-title: "shared_variants_analysis"
+title: "5. Shared Variant Analysis"
 author: "Will Hannon"
 date: "4/13/2021"
 output: html_document
 ---
 
+The goal of this notebook is to look at the iwthin host variants that are shared between crewmembers. Do any of these variants suggest that they were transmitted at low frequency between individuals? Or, are most shared variants the result of some other process - i.e. homoplasy, sequencing error, batch effect, etc..?
 
 ```{r Setup, include=FALSE}
 require("knitr")
@@ -16,7 +17,7 @@ knitr::opts_chunk$set(echo = FALSE)
 ## ==== Install Required Packages ==== ##
 
 ## List of all packages needed -- non-BioManager installed
-packages = c("tidyverse", "ggpubr", "kableExtra", "gridExtra", 'grid', "GenomicRanges")
+packages = c("tidyverse", "scales", "RColorBrewer", "ggrepel")
 ## Check that packages are installed, if not, install them
 installed_packages <- packages %in% rownames(installed.packages())
 if (any(installed_packages == FALSE)) {
@@ -32,134 +33,251 @@ invisible(lapply(c(packages), library, character.only = TRUE))
 ## ==== File paths input data ==== ##
 
 # Data from pysam/python script. It contains the % of each nucleotide
+# at every covered position in the genome. This is a huge file.
 pysam.data = "../../results/pileup/pysam-variants.csv"
 
-# Annotation of SARS-CoV-2 gene positions
-annotation.data = "../../config/sars_cov_2_annot.csv"
+# Data from lofreq, varscan, and ivar
+variant.data = "../../results/variants/variants.csv"
 
 # Samtools average depth
 average.depth.data = "../../results/coverage/merged.average.depth" 
 
+# Sample data
+sample_metadata = "../../config/data/Boat_Sample_Metadata.csv"
+
 ```
 
-```{r Process Data, warning=F, message=F}
+I'll format the variants that I called using the pileup function of the Python library `Pysam`. I'll also join the replicates.
 
-# Import pysam data 
-pysam.to.join.df = read_csv(pysam.data) %>% 
-  separate(ACCESSION, into = c("Accession", "Replicate"), sep = "_") %>% 
-  mutate(Replicate = as.factor(Replicate)) %>% 
-  select(!c("SNP","CONS"))
+```{r Format Pysam data, warning=FALSE, message=FALSE}
 
-# Combine the replicates 
+# Import the data splitting the accession ID into the Accession and the Replicate
+pysam.df = read_csv(pysam.data) %>% 
+  separate(ACCESSION, into = c("ACCESSION", "REPLICATE"), sep = "_") %>% 
+  mutate(REPLICATE = as.factor(REPLICATE))
+
+# Join the custom pysam SNPs by replicate
+pysam.to.join.df = pysam.df %>% 
+  select(!c("SNP", "CONS"))
+
 pysam.combined.df = full_join(
-  filter(pysam.to.join.df, Replicate == "1"),
-  filter(pysam.to.join.df, Replicate == "2"), 
-  by = c("Accession", "POS", "REF", "ALT", "EFFECT", "GENE", "CODON_POS", "AA_CHANGE"),
+  filter(pysam.to.join.df, REPLICATE == "1"),
+  filter(pysam.to.join.df, REPLICATE == "2"), 
+  by = c("ACCESSION", "POS", "REF", "ALT", "EFFECT", "GENE", "CODON_POS", "AA_CHANGE"),
   suffix = c(".one", ".two")
   ) %>% 
-  select(!c("Replicate.one", "Replicate.two")) %>% 
-  mutate_each(list( ~ replace(., which(is.na(.)), 0))) %>% 
-  # Filter out the variants that don't meet the depth/af requirements 
-  filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
-  filter(DP.one >= 100 & DP.two >= 100)
+  select(!c("REPLICATE.one", "REPLICATE.two")) %>% 
+  mutate(AF.one = if_else(is.na(AF.one), 0, AF.one)) %>% 
+  mutate(AF.two = if_else(is.na(AF.two), 0, AF.two)) %>% 
+  mutate(DP.one = if_else(is.na(DP.one), 0, DP.one)) %>% 
+  mutate(DP.two = if_else(is.na(DP.two), 0, DP.two)) 
+
 
 ```
 
-```{r Remove low quality samples, warning=F, message=F}
+Then, I'll do the sample with the variants called with three variant calling softwares: `lofreq`, `ivar`, and `varscan`. Here, I also standardize the column names with those of the pysam variants. 
 
-# Low quality samples 
+```{r Format Variant Data, warning=F, message=F}
+
+variant.df = read_csv(variant.data) %>% 
+  select(!c("Library", "Path", "Aligner", "LibraryLayout", "Virus", "Host", "Source", "Percent", "spID", "Replicate")) %>% 
+  distinct() %>%  # Duplicated columns when you merge with the sample data. 
+  separate(Accession, into = c("ACCESSION", "REPLICATE"), sep = "_") %>% 
+  rename("AA_CHANGE" = AA_Change, "EFFECT" = Effect, "GENE" = Gene_Name)
+
+variant.df.to.join = variant.df %>% 
+  select(!c("EFFECT", "GENE", "AA_CHANGE"))
+
+variant.combined.df = full_join(
+  filter(variant.df.to.join, REPLICATE == "1"),
+  filter(variant.df.to.join, REPLICATE == "2"), 
+  by = c("ACCESSION", "POS", "REF", "ALT", "Caller"),
+  suffix = c(".one", ".two")
+  ) %>% 
+  select(!c("REPLICATE.one", "REPLICATE.two")) %>% 
+  mutate(AF.one = if_else(is.na(AF.one), 0, AF.one)) %>% 
+  mutate(AF.two = if_else(is.na(AF.two), 0, AF.two)) %>% 
+  mutate(DP.one = if_else(is.na(DP.one), 0, DP.one)) %>% 
+  mutate(DP.two = if_else(is.na(DP.two), 0, DP.two)) 
+
+```
+
+I'll get a list of the low coverage samples to exclude from downstream analyses. These are any samples where at least on replicate has more than 20% of the genome covered by less than 200 reads:
+
+```{r Filter Low Depth Sample, warning=F, message=F}
+
+# Low quality samples - get the accessions for the samples that failed basic quality control. 
+# Presently, this anything that has 20% of the genome covered by less than *200* reads. 
 average.depth.df = read.table(average.depth.data, header = T) %>% 
   separate(Accession, into = c("Accession", "Replicate")) %>% 
-  mutate(Run = paste0(Accession, "_", Replicate))
+  mutate(Run = paste0(Accession, Replicate))
 
 low.coverage.samples = average.depth.df %>% filter(Percent < 80) %>% pull(Accession)
 low.coverage.runs = average.depth.df %>% filter(Percent < 80) %>% pull(Run)
 
-selected.samples.df = pysam.combined.df %>% 
-  # Remove the low coverage samples (> 80% covered by 200+ reads)
-  filter(!(Accession %in% low.coverage.samples)) %>% 
-  # Remove the samples with poor concordance
-  filter(!(Accession %in% c("10089", "10117", "10088")))
+print(low.coverage.samples)
+```
+
+I'll also get a list of all of the samples that have poor concordance between replicates. 
+
+```{r Filter Poor Concordance Samples, warning=F, message=F}
+
+poor.concordance.samples = pysam.combined.df %>% 
+  filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
+  filter(DP.one >= 100 & DP.two >= 100) %>% 
+  select(ACCESSION, REF, POS, ALT, DP.one, DP.two, AF.one, AF.two) %>% 
+  mutate(DIFF = abs(AF.one - AF.two)) %>% 
+  group_by(ACCESSION) %>% 
+  summarise(MEAN_DIFF = mean(DIFF)) %>% 
+  filter(MEAN_DIFF >= 0.025) %>% 
+  pull(ACCESSION)
+
+poor.concordance.samples = poor.concordance.samples[which(!poor.concordance.samples %in% low.coverage.samples)]
+
+print(poor.concordance.samples)
 
 ```
 
+Next, I wanted to select the main variants to include in the downstream analyses. To be included, the SNPs need to meet the following criteria: 
 
-```{r Calculate AF and Depth, warning=F, message=F}
+1. They must be in samples that are 'high coverage' 80% of the genome covered by 100 reads or more. 
+2. They have to be samples with high concordance between replicate allele frequencies (see `sequencing-replicate-analysis.Rmd`). 
+3. Variants must be present at more than 2% frequency in both of the replicates. 
+4. Variants must be covered by more than 100 reads in both of the replicates. 
 
-# Average the replicates to get AF and DP
-pysam.average.df = selected.samples.df %>% 
-  mutate(AF = (AF.one + AF.two)/2) %>% 
-  mutate(DP = (DP.one + DP.two)/2)
+Finally, the variants are combined between the replicates by averaging the allele frequency. Then, alleles present at more than 50% frequency and less than 98% frequency are flipped to their non-consensus counterparts. 
 
-# Calculate the AF and DP using majority vote.
-# Which alleles are in both samples and which has more reads.
+```{r Prepare Final Pysam Variants, warning=F, message=F}
 
-# Inner join the SNPs by replicate
-pysam.inner.combined.df = inner_join(
-  filter(pysam.to.join.df, Replicate == "1"),
-  filter(pysam.to.join.df, Replicate == "2"), 
-  by = c("Accession", "POS", "REF", "ALT", "EFFECT", "GENE", "CODON_POS", "AA_CHANGE"),
+# Only combine those SNPs that are in both samples
+selected.variant.df = inner_join(
+  filter(pysam.to.join.df, REPLICATE == "1"),
+  filter(pysam.to.join.df, REPLICATE == "2"), 
+  by = c("ACCESSION", "POS", "REF", "ALT", "EFFECT", "GENE", "CODON_POS", "AA_CHANGE"),
   suffix = c(".one", ".two")
   ) %>% 
-  select(!c("Replicate.one", "Replicate.two")) %>%  
+  # Remove the replicate columns 
+  select(!c("REPLICATE.one", "REPLICATE.two")) %>%  
+  # Add in a column of SNP identifiers 
   mutate(SNP = paste0(REF, POS, ALT)) %>% 
   # Remove the low coverage samples (> 80% covered by 200+ reads)
-  filter(!(Accession %in% low.coverage.samples)) %>% 
+  filter(!(ACCESSION %in% low.coverage.samples)) %>% 
   # Remove the samples with poor concordance
-  filter(!(Accession %in% c("10089", "10117", "10088"))) %>% 
+  filter(!(ACCESSION %in% poor.concordance.samples)) %>% 
   # Filter out the variants that don't meet the depth/af requirements 
   filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
   # Drastically speeds things up if you have a minimum depth
-  filter(DP.one >= 10 & DP.two >= 10)
-  
-
-
-pysam.inner.filtered = data.frame()
-for (i in 1:nrow(pysam.inner.combined.df)) {
-  row = pysam.inner.combined.df[i,]
-  if (row$DP.one > row$DP.two) {
-    DP = row$DP.one 
-    AF = row$AF.one 
-  } else {
-    DP = row$DP.two 
-    AF = row$AF.two 
-  }
-  row$AF = AF
-  row$DP = DP
-  pysam.inner.filtered = rbind(pysam.inner.filtered, row)
-}
-
-pysam.inner.filtered = pysam.inner.filtered %>% 
+  filter(DP.one >= 100 & DP.two >= 100) %>% 
+  # Combine AF and DP into a single value without averaging
+  mutate(AF = case_when(DP.one > DP.two ~ AF.one,
+                        DP.two > DP.one ~ AF.two,
+                        DP.one == DP.two ~ AF.one)) %>% 
+  mutate(DP = case_when(DP.one > DP.two ~ DP.one,
+                        DP.two > DP.one ~ DP.two)) %>% 
   select(!ends_with(".one")) %>% 
   select(!ends_with(".two")) 
 
+# Filp the consensus variants
+fipped.consensus.df = selected.variant.df %>% 
+  filter(AF >= 0.5) %>% 
+  rename(ALT = "REF", REF = "ALT") %>% 
+  mutate(AF = (1 - AF)) %>% 
+  filter(AF >= 0.02) %>% 
+  separate(AA_CHANGE, into = c("WT", "AAPOS"),
+           sep = "((?<=[A-Za-z])(?=[0-9]))") %>% 
+  separate(AAPOS, into = c("AAPOS", "MUT"),
+           sep = "((?<=[0-9])(?=[A-Za-z]))") %>% 
+  mutate(AA_CHANGE = paste0(MUT, AAPOS, WT)) %>% 
+  select(!c("MUT", "WT", "AAPOS"))
+
+final.variant.df = rbind(filter(selected.variant.df, AF < 0.5), fipped.consensus.df) %>% 
+  mutate(SNV = paste0(REF, POS, ALT))
 
 ```
 
-```{r Per Pos Frequency , echo=F, message=F, warning=F, fig.width= 15, fig.height= 15, fig.align="center"}
+
+```{r Prepare Final Caller Variants, warning=F, message=F}
+
+# Final samples and mutations to analyze: 
+# Remove low coverage samples
+# Remove alleles below 2%
+# Remove alleles with less than 100X coverage
+
+caller.selected.variant.df = inner_join(
+    filter(variant.df, REPLICATE == "1"),
+    filter(variant.df, REPLICATE == "2"), 
+    by = c("ACCESSION", "POS", "REF", "ALT", "EFFECT", "GENE", "AA_CHANGE", "Caller"),
+    suffix = c(".one", ".two")
+    ) %>% 
+    # Remove the replicate columns 
+    select(!c("REPLICATE.one", "REPLICATE.two")) %>%  
+    # Add in a column of SNP identifiers 
+    mutate(SNP = paste0(REF, POS, ALT)) %>% 
+    # Remove the low coverage samples (> 80% covered by 200+ reads)
+    filter(!(ACCESSION %in% low.coverage.samples)) %>% 
+    # Remove the samples with poor concordance
+    filter(!(ACCESSION %in% poor.concordance.samples)) %>% 
+    # Filter out the variants that don't meet the depth/af requirements 
+    filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
+    # Drastically speeds things up if you have a minimum depth
+    filter(DP.one >= 100 & DP.two >= 100) %>% 
+    # Combine AF and DP into a single value without averaging
+    mutate(AF = case_when(DP.one > DP.two ~ AF.one,
+                          DP.two > DP.one ~ AF.two,
+                          DP.one == DP.two ~ AF.one)) %>% 
+    mutate(DP = case_when(DP.one > DP.two ~ DP.one,
+                          DP.two > DP.one ~ DP.two)) %>% 
+    select(!ends_with(".one")) %>% 
+    select(!ends_with(".two")) 
+
+# Filp the consensus variants
+caller.fipped.consensus.df = caller.selected.variant.df %>% 
+  filter(AF >= 0.5) %>% 
+  rename(ALT = "REF", REF = "ALT") %>% 
+  mutate(AF = (1 - AF)) %>% 
+  filter(AF >= 0.02) %>% 
+  separate(AA_CHANGE, into = c("WT", "AAPOS"),
+           sep = "((?<=[A-Za-z])(?=[0-9]))") %>% 
+  separate(AAPOS, into = c("AAPOS", "MUT"),
+           sep = "((?<=[0-9])(?=[A-Za-z]))") %>% 
+  mutate(AA_CHANGE = paste0(MUT, AAPOS, WT)) %>% 
+  select(!c("MUT", "WT", "AAPOS"))
+
+caller.final.variant.df = rbind(filter(caller.selected.variant.df, AF < 0.5), caller.fipped.consensus.df) %>% 
+  mutate(Type = case_when(nchar(REF) > 1 ~ "Del",
+                          nchar(ALT) > 1 ~ "Ins",
+                          nchar(REF) == 1 ~ "SNP")) %>% 
+  filter(Type == "SNP") %>% 
+  mutate(SNV = paste0(REF, POS, ALT))
+
+```
+
+I wanted to see how the frequency of different variants changed throughout the boat between individuals. First, I did this with only the `pysam` variants. Most mutations are private to individuals. Some low frequency mutations are shared. 
+
+```{r Per Pos Frequency - minor only, echo=F, message=F, warning=F, fig.width= 15, fig.height= 15, fig.align="center"}
  
-fixed.in.the.boat = pysam.inner.filtered %>% 
+fixed.in.the.boat = selected.variant.df %>% 
   filter(DP >= 100) %>% 
   group_by(SNP) %>% 
   count() %>% 
-  filter(n == length(unique(pysam.inner.filtered$Accession))) %>% 
+  filter(n == length(unique(selected.variant.df$ACCESSION))) %>% 
   pull(SNP)
 
-pysam.inner.filtered %>% 
-  mutate(Accession = paste0("Crewmember-", Accession)) %>% 
-  filter(DP >= 100) %>% 
+final.variant.df %>% 
+  mutate(ACCESSION = paste0("Crewmember-", ACCESSION)) %>% 
   filter(!(SNP %in% fixed.in.the.boat)) %>% 
-  select(Accession, SNP, AF) %>% 
+  select(ACCESSION, SNP, AF) %>% 
   pivot_wider(names_from = SNP, values_from = AF, values_fill = 0) %>% 
-  pivot_longer(!Accession, names_to = "SNP", values_to = "AF") %>%
+  pivot_longer(!ACCESSION, names_to = "SNP", values_to = "AF") %>%
   mutate(POS = as.numeric(parse_number(SNP))) %>%
   mutate(SNP = as.factor(SNP)) %>% 
-  ggplot(aes(x = Accession, y = AF)) +
+  ggplot(aes(x = ACCESSION, y = AF)) +
     annotate("rect", xmin = -Inf, xmax =  Inf, ymin = 0, ymax = 1, fill = "#737373") +
     geom_area(aes(group = 1), fill = "#fc9403") +
     geom_line(aes(group = 1), col = "black", size = 0.2) +
     facet_wrap(~fct_reorder(SNP, POS, min), ncol = 5) +
     geom_point(size = 3) +
+    ggtitle("Pysam") + 
     xlab("Patient") +
     ylab("Allele Frequency") + 
     scale_color_manual(values = c("#bd0000", "#0013bd", "#bd00ba"), name = "Type") +
@@ -173,13 +291,154 @@ pysam.inner.filtered %>%
     theme(panel.background = element_rect(fill = NA, color = "black")) +
     theme(axis.text.x = element_text(size = 16)) + 
     theme(panel.spacing = unit(2, "lines")) + 
-    theme(axis.ticks.length=unit(.25, "cm"))
+    theme(axis.ticks.length=unit(.25, "cm")) +
+  theme(plot.title = element_text(hjust = 0.5))
 
 
-ggsave("../../config/figures/figure-4.png", width = 15, height = 15, dpi = 300, units = "in")
+ggsave("../../results/figures/pysam_shared_variants_frequency.png", width = 15, height = 15, dpi = 300, units = "in")
 
 ```
 
+Same thing, but for `lofreq`:
+```{r Per Pos Frequency - lofreq, echo=F, message=F, warning=F, fig.width= 15, fig.height= 15, fig.align="center"}
+
+caller.final.variant.df %>% 
+  filter(Caller == "lofreq") %>% 
+  mutate(ACCESSION = paste0("Crewmember-", ACCESSION)) %>% 
+  filter(!(SNP %in% fixed.in.the.boat)) %>% 
+  select(ACCESSION, SNP, AF) %>% 
+  pivot_wider(names_from = SNP, values_from = AF, values_fill = 0) %>% 
+  pivot_longer(!ACCESSION, names_to = "SNP", values_to = "AF") %>%
+  mutate(POS = as.numeric(parse_number(SNP))) %>%
+  mutate(SNP = as.factor(SNP)) %>% 
+  ggplot(aes(x = ACCESSION, y = AF)) +
+    annotate("rect", xmin = -Inf, xmax =  Inf, ymin = 0, ymax = 1, fill = "#737373") +
+    geom_area(aes(group = 1), fill = "#fc9403") +
+    geom_line(aes(group = 1), col = "black", size = 0.2) +
+    facet_wrap(~fct_reorder(SNP, POS, min), ncol = 5) +
+    geom_point(size = 3) +
+    ggtitle("Lofreq") + 
+    xlab("Patient") +
+    ylab("Allele Frequency") + 
+    scale_color_manual(values = c("#bd0000", "#0013bd", "#bd00ba"), name = "Type") +
+    scale_y_continuous(breaks = c(0, 0.5, 1), limits = c(0,1) , expand = c(0,0)) +  
+    scale_x_discrete(expand = c(0,0), guide = guide_axis(angle = 90)) +    
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=24,  family="Helvetica")) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.background = element_rect(fill = NA, color = "black")) +
+    theme(axis.text.x = element_text(size = 16)) + 
+    theme(panel.spacing = unit(2, "lines")) + 
+    theme(axis.ticks.length=unit(.25, "cm")) +
+  theme(plot.title = element_text(hjust = 0.5))
 
 
+```
+
+Same thing, but for `varscan`:
+```{r Per Pos Frequency - varscan, echo=F, message=F, warning=F, fig.width= 15, fig.height= 15, fig.align="center"}
+
+caller.final.variant.df %>% 
+  filter(Caller == "varscan") %>% 
+  mutate(ACCESSION = paste0("Crewmember-", ACCESSION)) %>% 
+  filter(!(SNP %in% fixed.in.the.boat)) %>% 
+  select(ACCESSION, SNP, AF) %>% 
+  pivot_wider(names_from = SNP, values_from = AF, values_fill = 0) %>% 
+  pivot_longer(!ACCESSION, names_to = "SNP", values_to = "AF") %>%
+  mutate(POS = as.numeric(parse_number(SNP))) %>%
+  mutate(SNP = as.factor(SNP)) %>% 
+  ggplot(aes(x = ACCESSION, y = AF)) +
+    annotate("rect", xmin = -Inf, xmax =  Inf, ymin = 0, ymax = 1, fill = "#737373") +
+    geom_area(aes(group = 1), fill = "#fc9403") +
+    geom_line(aes(group = 1), col = "black", size = 0.2) +
+    facet_wrap(~fct_reorder(SNP, POS, min), ncol = 5) +
+    geom_point(size = 3) +
+    ggtitle("Varscan") + 
+    xlab("Patient") +
+    ylab("Allele Frequency") + 
+    scale_color_manual(values = c("#bd0000", "#0013bd", "#bd00ba"), name = "Type") +
+    scale_y_continuous(breaks = c(0, 0.5, 1), limits = c(0,1) , expand = c(0,0)) +  
+    scale_x_discrete(expand = c(0,0), guide = guide_axis(angle = 90)) +    
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=24,  family="Helvetica")) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.background = element_rect(fill = NA, color = "black")) +
+    theme(axis.text.x = element_text(size = 16)) + 
+    theme(panel.spacing = unit(2, "lines")) + 
+    theme(axis.ticks.length=unit(.25, "cm")) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+```
+
+Same thing, but for `ivar`:
+```{r Per Pos Frequency - ivar, echo=F, message=F, warning=F, fig.width= 15, fig.height= 15, fig.align="center"}
+
+caller.final.variant.df %>% 
+  filter(Caller == "ivar") %>% 
+  mutate(ACCESSION = paste0("Crewmember-", ACCESSION)) %>% 
+  filter(!(SNP %in% fixed.in.the.boat)) %>% 
+  select(ACCESSION, SNP, AF) %>% 
+  pivot_wider(names_from = SNP, values_from = AF, values_fill = 0) %>% 
+  pivot_longer(!ACCESSION, names_to = "SNP", values_to = "AF") %>%
+  mutate(POS = as.numeric(parse_number(SNP))) %>%
+  mutate(SNP = as.factor(SNP)) %>% 
+  ggplot(aes(x = ACCESSION, y = AF)) +
+    annotate("rect", xmin = -Inf, xmax =  Inf, ymin = 0, ymax = 1, fill = "#737373") +
+    geom_area(aes(group = 1), fill = "#fc9403") +
+    geom_line(aes(group = 1), col = "black", size = 0.2) +
+    facet_wrap(~fct_reorder(SNP, POS, min), ncol = 5) +
+    geom_point(size = 3) +
+    xlab("Patient") +
+    ylab("Allele Frequency") + 
+    scale_color_manual(values = c("#bd0000", "#0013bd", "#bd00ba"), name = "Type") +
+    scale_y_continuous(breaks = c(0, 0.5, 1), limits = c(0,1) , expand = c(0,0)) +  
+    scale_x_discrete(expand = c(0,0), guide = guide_axis(angle = 90)) +    
+    ggtitle("Ivar") + 
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=24,  family="Helvetica")) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.background = element_rect(fill = NA, color = "black")) +
+    theme(axis.text.x = element_text(size = 16)) + 
+    theme(panel.spacing = unit(2, "lines")) + 
+    theme(axis.ticks.length=unit(.25, "cm")) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+```
+
+```{r Shared Variants by Method}
+
+# Combine all of the methods
+combined.final.variant.df = rbind(caller.final.variant.df, select(mutate(final.variant.df, Caller = "pysam", Type = "SNP"), colnames(caller.final.variant.df)))
+
+# What are the variants that show up in more than one person? 
+shared.variants = combined.final.variant.df %>% 
+  group_by(POS, REF, ALT, EFFECT, GENE, AA_CHANGE, Caller) %>% 
+  count() %>% 
+  filter(n > 1)
+
+
+print(shared.variants)
+
+```
+
+The variants that show up in multiple individuals are mostly the same between the four methods. There are two key differences: (1) One site that is fixed in multiple methods shows up as a Wuhan-1 reversion in `lofreq` - 1108, (2) There are a string of mutations at the end of the genome that show up in `ivar` and `lofreq`. 
+
+```{r Shared Variants in Pysam}
+
+shared.variants.pysam.df = shared.variants %>% 
+  filter(POS %in% pull(filter(shared.variants, Caller == "pysam"), POS))
+
+print(shared.variants.pysam.df)
+
+```
+
+Otherwise, there are four shared minor variants that I called with `pysam`: `r (unique(shared.variants.pysam.df$POS))`. Three out four are called with all three methods. One (`14335`) is missing from `varscan`. 
 

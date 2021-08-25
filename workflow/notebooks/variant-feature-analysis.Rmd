@@ -63,6 +63,7 @@ pysam.df = read_csv(pysam.data) %>%
 pysam.to.join.df = pysam.df %>% 
   select(!c("SNP", "CONS"))
 
+
 pysam.combined.df = full_join(
   filter(pysam.to.join.df, REPLICATE == "1"),
   filter(pysam.to.join.df, REPLICATE == "2"), 
@@ -75,7 +76,7 @@ pysam.combined.df = full_join(
   mutate(DP.one = if_else(is.na(DP.one), 0, DP.one)) %>% 
   mutate(DP.two = if_else(is.na(DP.two), 0, DP.two)) 
 
-print(head(pysam.combined.df))
+
 ```
 
 Then, I'll do the sample with the variants called with three variant calling softwares: `lofreq`, `ivar`, and `varscan`. Here, I also standardize the column names with those of the pysam variants. 
@@ -88,10 +89,13 @@ variant.df = read_csv(variant.data) %>%
   separate(Accession, into = c("ACCESSION", "REPLICATE"), sep = "_") %>% 
   rename("AA_CHANGE" = AA_Change, "EFFECT" = Effect, "GENE" = Gene_Name)
 
+variant.df.to.join = variant.df %>% 
+  select(!c("EFFECT", "GENE", "AA_CHANGE"))
+
 variant.combined.df = full_join(
-  filter(variant.df, REPLICATE == "1"),
-  filter(variant.df, REPLICATE == "2"), 
-  by = c("ACCESSION", "POS", "REF", "ALT", "Caller", "EFFECT", "GENE", "AA_CHANGE"),
+  filter(variant.df.to.join, REPLICATE == "1"),
+  filter(variant.df.to.join, REPLICATE == "2"), 
+  by = c("ACCESSION", "POS", "REF", "ALT", "Caller"),
   suffix = c(".one", ".two")
   ) %>% 
   select(!c("REPLICATE.one", "REPLICATE.two")) %>% 
@@ -100,7 +104,6 @@ variant.combined.df = full_join(
   mutate(DP.one = if_else(is.na(DP.one), 0, DP.one)) %>% 
   mutate(DP.two = if_else(is.na(DP.two), 0, DP.two)) 
 
-print(head(variant.combined.df))
 ```
 
 ```{r Annotations, message=F, warning=F, fig.width=25, fig.height=20, fig.align="center"}
@@ -177,22 +180,36 @@ Finally, the variants are combined between the replicates by averaging the allel
 
 ```{r Prepare Final Pysam Variants, warning=F, message=F}
 
-# Final samples and mutations to analyze: 
-# Remove low coverage samples
-# Remove alleles below 2%
-# Remove alleles with less than 100X coverage
-
-selected.variant.df = pysam.combined.df %>% 
+# Only combine those SNPs that are in both samples
+selected.variant.df = inner_join(
+  filter(pysam.to.join.df, REPLICATE == "1"),
+  filter(pysam.to.join.df, REPLICATE == "2"), 
+  by = c("ACCESSION", "POS", "REF", "ALT", "EFFECT", "GENE", "CODON_POS", "AA_CHANGE"),
+  suffix = c(".one", ".two")
+  ) %>% 
+  # Remove the replicate columns 
+  select(!c("REPLICATE.one", "REPLICATE.two")) %>%  
+  # Add in a column of SNP identifiers 
+  mutate(SNP = paste0(REF, POS, ALT)) %>% 
+  # Remove the low coverage samples (> 80% covered by 200+ reads)
   filter(!(ACCESSION %in% low.coverage.samples)) %>% 
+  # Remove the samples with poor concordance
   filter(!(ACCESSION %in% poor.concordance.samples)) %>% 
+  # Filter out the variants that don't meet the depth/af requirements 
   filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
+  # Drastically speeds things up if you have a minimum depth
   filter(DP.one >= 100 & DP.two >= 100) %>% 
-  # Allele frequency is the average of the two replicates
-  mutate(AF = (AF.one + AF.two)/2) %>% 
-  select(ACCESSION, POS, REF, ALT, AF, AA_CHANGE, EFFECT, GENE) 
+  # Combine AF and DP into a single value without averaging
+  mutate(AF = case_when(DP.one > DP.two ~ AF.one,
+                        DP.two > DP.one ~ AF.two,
+                        DP.one == DP.two ~ AF.one)) %>% 
+  mutate(DP = case_when(DP.one > DP.two ~ DP.one,
+                        DP.two > DP.one ~ DP.two)) %>% 
+  select(!ends_with(".one")) %>% 
+  select(!ends_with(".two")) 
 
 # Filp the consensus variants
-fipped.cons = selected.variant.df %>% 
+fipped.consensus.df = selected.variant.df %>% 
   filter(AF >= 0.5) %>% 
   rename(ALT = "REF", REF = "ALT") %>% 
   mutate(AF = (1 - AF)) %>% 
@@ -204,10 +221,11 @@ fipped.cons = selected.variant.df %>%
   mutate(AA_CHANGE = paste0(MUT, AAPOS, WT)) %>% 
   select(!c("MUT", "WT", "AAPOS"))
 
-final.variant.df = rbind(filter(selected.variant.df, AF < 0.5), fipped.cons) %>% 
+final.variant.df = rbind(filter(selected.variant.df, AF < 0.5), fipped.consensus.df) %>% 
   mutate(SNV = paste0(REF, POS, ALT))
 
 ```
+
 
 ```{r Prepare Final Caller Variants, warning=F, message=F}
 
@@ -216,21 +234,35 @@ final.variant.df = rbind(filter(selected.variant.df, AF < 0.5), fipped.cons) %>%
 # Remove alleles below 2%
 # Remove alleles with less than 100X coverage
 
-caller.selected.variant.df = variant.combined.df %>% 
-  filter(!(ACCESSION %in% low.coverage.samples)) %>% 
-  filter(!(ACCESSION %in% poor.concordance.samples)) %>% 
-  mutate(Type = case_when(nchar(REF) > 1 ~ "Del",
-                          nchar(ALT) > 1 ~ "Ins",
-                          nchar(REF) == 1 ~ "SNP")) %>% 
-  filter(Type == "SNP") %>% 
-  filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
-  filter(DP.one >= 100 & DP.two >= 100) %>% 
-  # Allele frequency is the average of the two replicates
-  mutate(AF = (AF.one + AF.two)/2) %>% 
-  select(ACCESSION, POS, REF, ALT, AF, AA_CHANGE, EFFECT, GENE, Caller) 
+caller.selected.variant.df = inner_join(
+    filter(variant.df, REPLICATE == "1"),
+    filter(variant.df, REPLICATE == "2"), 
+    by = c("ACCESSION", "POS", "REF", "ALT", "EFFECT", "GENE", "AA_CHANGE", "Caller"),
+    suffix = c(".one", ".two")
+    ) %>% 
+    # Remove the replicate columns 
+    select(!c("REPLICATE.one", "REPLICATE.two")) %>%  
+    # Add in a column of SNP identifiers 
+    mutate(SNP = paste0(REF, POS, ALT)) %>% 
+    # Remove the low coverage samples (> 80% covered by 200+ reads)
+    filter(!(ACCESSION %in% low.coverage.samples)) %>% 
+    # Remove the samples with poor concordance
+    filter(!(ACCESSION %in% poor.concordance.samples)) %>% 
+    # Filter out the variants that don't meet the depth/af requirements 
+    filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
+    # Drastically speeds things up if you have a minimum depth
+    filter(DP.one >= 100 & DP.two >= 100) %>% 
+    # Combine AF and DP into a single value without averaging
+    mutate(AF = case_when(DP.one > DP.two ~ AF.one,
+                          DP.two > DP.one ~ AF.two,
+                          DP.one == DP.two ~ AF.one)) %>% 
+    mutate(DP = case_when(DP.one > DP.two ~ DP.one,
+                          DP.two > DP.one ~ DP.two)) %>% 
+    select(!ends_with(".one")) %>% 
+    select(!ends_with(".two")) 
 
 # Filp the consensus variants
-caller.fipped.cons = caller.selected.variant.df %>% 
+caller.fipped.consensus.df = caller.selected.variant.df %>% 
   filter(AF >= 0.5) %>% 
   rename(ALT = "REF", REF = "ALT") %>% 
   mutate(AF = (1 - AF)) %>% 
@@ -242,7 +274,11 @@ caller.fipped.cons = caller.selected.variant.df %>%
   mutate(AA_CHANGE = paste0(MUT, AAPOS, WT)) %>% 
   select(!c("MUT", "WT", "AAPOS"))
 
-caller.final.variant.df = rbind(filter(caller.selected.variant.df, AF < 0.5), caller.fipped.cons) %>% 
+caller.final.variant.df = rbind(filter(caller.selected.variant.df, AF < 0.5), caller.fipped.consensus.df) %>% 
+  mutate(Type = case_when(nchar(REF) > 1 ~ "Del",
+                          nchar(ALT) > 1 ~ "Ins",
+                          nchar(REF) == 1 ~ "SNP")) %>% 
+  filter(Type == "SNP") %>% 
   mutate(SNV = paste0(REF, POS, ALT))
 
 ```
@@ -278,7 +314,7 @@ It's clear that Ct value doesn't correlate with the number of iSNVs called after
 
 ```{r Variant Caller iSNVs vs. Ct, warning=F, message=F, width = 7, height = 5}
 
-all.final.variants.df = rbind(caller.final.variant.df, select(mutate(final.variant.df, Caller = "pysam"), colnames(caller.final.variant.df)))
+all.final.variants.df = rbind(select(caller.final.variant.df, !Type), select(mutate(final.variant.df, Caller = "pysam"), colnames(select(caller.final.variant.df, !Type))))
 
 all_iSNV_count.df = all.final.variants.df %>% 
   group_by(ACCESSION, Caller) %>% 
@@ -303,7 +339,7 @@ Although the number of "passing" variants is a little bit different between the 
 
 I wanted to see how many intrahost variants there are on average across samples. Just like above, these needed to pass quality controls. 
 
-```{r Variant Caller iSNVs vs. Ct, warning=F, message=F, width = 7, height = 5}
+```{r Average SNPs, warning=F, message=F, width = 8, height = 5}
 
 average.number.of.minor.variants = final.variant.df %>% 
   group_by(ACCESSION) %>% 
@@ -317,7 +353,7 @@ final.variant.df %>%
   count() %>% 
   ggplot(aes(x = n, y = reorder(ACCESSION, -n))) + 
     geom_bar(stat = 'identity') + 
-    geom_text(aes(x = 4.5, y = "10040"), label = paste("Average ~ ", average.number.of.minor.variants), size = 7) +
+    geom_text(aes(x = 4.5, y = "10040"), label = paste("Average ~ ", average.number.of.minor.variants), size = 6) +
     ylab('Crewmember') + 
     xlab('Number of minor variants') +
     theme_bw(18)
@@ -342,7 +378,7 @@ final.variant.df %>%
     theme_bw(18) +
     theme(plot.title = element_text(hjust = 0.5)) 
   
-ggsave(filename = "../../config/figures/MAF_specturm.svg", width = 6, height = 4)
+ggsave(filename = "../../results/figures/MAF_specturm.svg", width = 6, height = 4)
 
 ```
 
@@ -366,7 +402,7 @@ final.variant.df %>%
   mutate(EFFECT = if_else(is.na(EFFECT), "synonymous", EFFECT)) %>% 
   ggplot(aes(x = POS, y = AF, col = EFFECT, fill = EFFECT))+
     geom_point(stat="identity", size = 3, stroke = 2, alpha = 0.5) + 
-    geom_bar(stat="identity", position = position_identity(), width=.01) +
+    # geom_bar(stat="identity", position = position_identity(), width=.01, alpha = 0.5) +
     geom_text_repel(aes(label = ACCESSION)) +
     xlab("Position") +
     ylab("Allele Frequency") +
@@ -377,38 +413,38 @@ final.variant.df %>%
              alpha = .2, fill = "grey", col = "black", size = .1) + 
     annotate("rect", xmin = ORF1ab[[2]], xmax = ORF1ab[[3]], ymin =  -.075, ymax = -.01 ,
                alpha = .2, fill = "dodgerblue2", col = "black", size = .1) +
-    annotate(geom = "text", x = label[[2]][1], y = label[[3]][1], label = label[[1]][1], family = "mono", size = 7) +
+    annotate(geom = "text", x = label[[2]][1], y = label[[3]][1], label = label[[1]][1], family = "helvetica", size = 7) +
     annotate("rect", xmin = Spike[[2]], xmax = Spike[[3]], ymin = -.075, ymax = -.01 ,
              alpha = .2, fill = "yellow3", col = "black", size = .1) +
-    annotate(geom = "text", x = label[[2]][2], y = label[[3]][2], label = label[[1]][2], family = "mono", size = 7) +
+    annotate(geom = "text", x = label[[2]][2], y = label[[3]][2], label = label[[1]][2], family = "helvetica", size = 7) +
     annotate("rect", xmin = ORF3a[[2]], xmax = ORF3a[[3]], ymin = -.075, ymax = -.01 ,
              alpha = .2, fill = "#FF7F00", col = "black", size = .1) +
-    annotate(geom = "text", x = label[[2]][3], y = label[[3]][3], label = "3a", family = "mono", size = 7) +
+    annotate(geom = "text", x = label[[2]][3], y = label[[3]][3], label = "3a", family = "helvetica", size = 7) +
     annotate("rect", xmin = Envelope[[2]], xmax = Envelope[[3]], ymin = -.075, ymax = -.01 ,
              alpha = .2, fill =  "#6A3D9A", col = "black", size = .1) +
-    annotate(geom = "text", x = label[[2]][4], y = label[[3]][4], label = "E", family = "mono", size = 7) +
+    annotate(geom = "text", x = label[[2]][4], y = label[[3]][4], label = "E", family = "helvetica", size = 7) +
     annotate("rect", xmin = Membrane[[2]], xmax = Membrane[[3]], ymin = -.075, ymax = -.01 ,
              alpha = .2, fill =  "green4", col = "black", size = .1) +
-    annotate(geom = "text", x = label[[2]][5], y = label[[3]][5], label = "M", family = "mono", size = 7) +
+    annotate(geom = "text", x = label[[2]][5], y = label[[3]][5], label = "M", family = "helvetica", size = 7) +
     annotate("rect", xmin = ORF6[[2]], xmax = ORF6[[3]], ymin = -.075, ymax = -.01 ,
              alpha = .2, fill = "#E31A1C", col = "black", size = .1) +
-    annotate(geom = "text", x = label[[2]][6], y = label[[3]][6], label = "6", family = "mono", size = 7) +
+    annotate(geom = "text", x = label[[2]][6], y = label[[3]][6], label = "6", family = "helvetica", size = 7) +
     annotate("rect", xmin = ORF7a[[2]], xmax = ORF7a[[3]], ymin = -.075, ymax = -.01 ,
              alpha = .2, fill = "#FB9A99", col = "black", size = .1) +
-    #annotate(geom = "text", x = label[[2]][7], y = label[[3]][7], label = "7a", family = "mono", size = 7) +
+    #annotate(geom = "text", x = label[[2]][7], y = label[[3]][7], label = "7a", family = "helvetica", size = 7) +
     annotate("rect", xmin = ORF8[[2]], xmax = ORF8[[3]], ymin = -.075, ymax = -.01 ,
              alpha = .2, fill = "orchid1", col = "black", size = .1) +
-    annotate(geom = "text", x = label[[2]][8], y = label[[3]][8], label = "8", family = "mono", size = 7) +
+    annotate(geom = "text", x = label[[2]][8], y = label[[3]][8], label = "8", family = "helvetica", size = 7) +
     annotate("rect", xmin = Nucleocapsid[[2]], xmax = Nucleocapsid[[3]], ymin = -.075, ymax = -.01 ,
              alpha = .2, fill = "maroon", col = "black", size = .1) +
-    annotate(geom = "text", x = label[[2]][9], y = label[[3]][9], label = "N", family = "mono", size = 7) +
+    annotate(geom = "text", x = label[[2]][9], y = label[[3]][9], label = "N", family = "helvetica", size = 7) +
     annotate("rect", xmin = ORF10[[2]], xmax = ORF10[[3]], ymin = -.075, ymax = -.01 ,
              alpha = .2, fill =  "skyblue2", col = "black", size = .1) +
     annotate("rect", xmin = ORF10[[3]]+1, xmax = 29903, ymin = -.075, ymax = -.01 ,
              alpha = .2, fill = "grey", col = "black", size = .1) +
-    annotate(geom = "text", x = -200, y = label[[3]][1], label = "5'", family = "mono", size = 7) +
-    annotate(geom = "text", x = 30200, y = label[[3]][1], label = "3'", family = "mono", size = 7) +
-    #annotate(geom = "text", x = label[[2]][10], y = label[[3]][10], label = "10", family = "mono") +
+    annotate(geom = "text", x = -200, y = label[[3]][1], label = "5'", family = "helvetica", size = 7) +
+    annotate(geom = "text", x = 30200, y = label[[3]][1], label = "3'", family = "helvetica", size = 7) +
+    #annotate(geom = "text", x = label[[2]][10], y = label[[3]][10], label = "10", family = "helvetica") +
     theme_classic() +
     theme(legend.position="bottom", legend.box = "horizontal") +
     theme(legend.box.background = element_rect(colour = "black")) +
@@ -416,270 +452,7 @@ final.variant.df %>%
     theme(plot.title = element_text(hjust = 0.5)) +
     theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) 
 
-ggsave("../../config/figures/figure-3-A.svg", width = 18, height = 6, dpi = 300, units = "in")
-
-```
-
-## Everything below belongs in a different notebook. 
-
-```{r Percent by sample, message=FALSE, warning=FALSE, fig.width=8, fig.height=5, fig.align='center'}
-
-shared.snps = final.variant.df %>% 
-  group_by(SNV) %>% 
-  count() %>% 
-  filter(n > 1) %>% 
-  pull(SNV)
-
-shared.snps.df = final.variant.df[which(final.variant.df$SNV %in% shared.snps),]
-
-shared.snps.df %>% 
-  ggplot(aes(x = reorder(ACCESSION, AF), y = AF)) +
-    geom_point(size = 2) + 
-    facet_wrap(~SNV) + 
-    xlab("Sample") + 
-    ylab("Allele Frequency") +
-    scale_y_continuous(labels = percent, limits = c(0, .15)) +
-    theme_classic() +
-    theme(legend.position="bottom", legend.box = "horizontal") +
-    theme(legend.box.background = element_rect(colour = "black")) +
-    theme(text=element_text(size=18)) +
-    theme(plot.title = element_text(hjust = 0.5)) +
-    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
-    theme(axis.text.x=element_text(angle=45, hjust=1))
-
-
-
-
-```
-
-Does T18402A ever reach 100% frequency? 
-
-```{r Probably an artifact, message=FALSE, warning=FALSE, fig.width=6, fig.height=3, fig.align='center'}
-
-good.runs = average.depth.df %>% 
-  mutate(Run = paste(Accession, Replicate, sep = "_")) %>% 
-  filter(Percent >= 80) %>% 
-  pull(Run)
-
-pysam.df %>% 
-  mutate(Run = paste(ACCESSION, REPLICATE, sep = "_")) %>% 
-  filter(Run %in% good.runs) %>% 
-  filter(POS == 18402) %>% 
-  filter(AF >= 0.02) %>% 
-  ggplot(aes(x = reorder(ACCESSION, AF), y = AF)) +
-    geom_point(size = 3) + 
-    facet_wrap(~REPLICATE) +
-    xlab("Sample") + 
-    ylab("Allele Frequency") +
-    ggtitle("T18402A is likely an artifact") +
-    theme_classic() +
-    theme(legend.position="bottom", legend.box = "horizontal") +
-    theme(legend.box.background = element_rect(colour = "black")) +
-    theme(text=element_text(size=18)) +
-    theme(plot.title = element_text(hjust = 0.5)) +
-    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
-    theme(axis.text.x=element_text(angle=45, hjust=1))
-
-
-
-```
-
-
-```{r Minor Varaints, message=FALSE, warning=FALSE, fig.width=10, fig.height=30, fig.align='center'}
-
-high.confidence.snps = final.variant.df %>% 
-  pull(POS) %>% 
-  unique(.) 
-
-good.runs = average.depth.df %>% 
-  mutate(Run = paste(Accession, Replicate, sep = "_")) %>% 
-  filter(Percent >= 80) %>% 
-  pull(Run)
-
-pysam.df %>% 
-  mutate(Run = paste(ACCESSION, REPLICATE, sep = "_")) %>% 
-  filter(Run %in% good.runs) %>% 
-  filter(POS %in% high.confidence.snps) %>% 
-  filter(AF >= 0.02) %>% 
-  ggplot(aes(x = reorder(ACCESSION, AF), y = AF)) +
-    geom_point(size = 3) + 
-    facet_grid(cols = vars(REPLICATE), rows = vars(POS)) +
-    xlab("Sample") + 
-    ylab("Allele Frequency") +
-    theme_bw() +
-    theme(legend.position="bottom", legend.box = "horizontal") +
-    theme(legend.box.background = element_rect(colour = "black")) +
-    theme(text=element_text(size=15)) +
-    theme(plot.title = element_text(hjust = 0.5)) +
-    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
-    theme(axis.text.x=element_text(angle=45, hjust=1))
-
-```
-
-
-```{r Fixed Mutations, message=FALSE, warning=FALSE, fig.width=10, fig.height=30, fig.align='center'}
-
-high.confidence.fixed = selected.variant.df %>% 
-  filter(AF >= 0.5) %>% 
-  pull(POS) %>% 
-  unique(.) 
-
-good.runs = average.depth.df %>% 
-  mutate(Run = paste(Accession, Replicate, sep = "_")) %>% 
-  filter(Percent >= 80) %>% 
-  pull(Run)
-
-pysam.df %>% 
-  mutate(Run = paste(ACCESSION, REPLICATE, sep = "_")) %>% 
-  filter(Run %in% good.runs) %>% 
-  filter(POS %in% high.confidence.fixed) %>% 
-  filter(AF >= 0.02) %>% 
-  ggplot(aes(x = reorder(ACCESSION, AF), y = AF)) +
-    geom_point(size = 3) + 
-    facet_grid(cols = vars(REPLICATE), rows = vars(POS)) +
-    xlab("Sample") + 
-    ylab("Allele Frequency") +
-    theme_bw() +
-    theme(legend.position="bottom", legend.box = "horizontal") +
-    theme(legend.box.background = element_rect(colour = "black")) +
-    theme(text=element_text(size=15)) +
-    theme(plot.title = element_text(hjust = 0.5)) +
-    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
-    theme(axis.text.x=element_text(angle=45, hjust=1))
-
-```
-
-
-```{r Summary Figure, message=FALSE, warning=FALSE, fig.width=16, fig.height=4, fig.align='center'}
-
-# Good samples where both replicates have more than 80% coverage (14)
-samples.to.include = average.depth.df %>% 
-  mutate(Run = paste(Accession, Replicate, sep = "_")) %>% 
-  filter(Percent >= 80) %>% 
-  group_by(Accession) %>% 
-  count() %>% 
-  filter(n == 2) %>% 
-  pull(Accession)
-
-# Mutations from the reference
-mutations.to.include = selected.variant.df %>% pull(POS)
-
-pysam.df %>% 
-  filter(ACCESSION %in% samples.to.include) %>% 
-  filter(POS %in% mutations.to.include) %>% 
-  filter(AF > 0.02) %>% 
-  ggplot(aes(x = reorder(as.factor(POS), AF), y = AF, col = REPLICATE)) + 
-    geom_jitter(size = 5, width = .15) +
-    xlab("Genomic Position with SNP") + 
-    ylab("Allele Frequency") +
-    scale_color_manual(values = c("#3232a8", "#b03733"), name = "Replicate") +
-    theme_bw() +
-    theme(legend.position="bottom", legend.box = "horizontal") +
-    theme(legend.box.background = element_rect(colour = "black")) +
-    theme(text=element_text(size=28)) +
-    theme(plot.title = element_text(hjust = 0.5)) +
-    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
-    theme(axis.text.x=element_text(angle=45, hjust=1)) +
-    theme(panel.grid.major.x = element_line(size = 1.5, linetype = "solid"))
-
-  
-
-```
-
-
-```{r Summary Figure, message=FALSE, warning=FALSE, fig.width=18, fig.height=5, fig.align='center'}
-
-  
-pallete = c("#4287f5", 
-            "#b5183a", 
-            "#eaed24", 
-            "#22e051", 
-            "#dbab18", 
-            "#e815c5",
-            "#38fffc", 
-            "#ff38b6", 
-            "#bda679", 
-            "#ffb3b3", 
-            "#12128a", 
-            "#a1a1a1", 
-            "#000000",
-            "#156b00")
-
-# Mutations from the reference exlucing the 'boat consensus' 
-boat.consensus = selected.variant.df %>% 
-  filter(AF > 0.5) %>% 
-  mutate(SNV = paste0(REF, POS, ALT)) %>% 
-  group_by(SNV) %>% 
-  count() %>% 
-  filter(n == 12) %>% 
-  pull(SNV)
-
-positions.to.include = selected.variant.df %>% 
-  mutate(SNV = paste0(REF, POS, ALT)) %>% 
-  filter(!SNV %in% boat.consensus) %>% 
-  pull(POS)
-
-pysam.combined.snps.df %>% 
-  filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
-  filter(DP.one >= 100 & DP.two >= 100) %>% 
-  mutate(AF = (AF.one + AF.two)/2) %>% 
-  select(ACCESSION, POS, REF, ALT, AF, AA_CHANGE = "AA_CHANGE.one", EFFECT = "EFFECT.one", GENE = "GENE.one") %>% 
-  mutate(SNV = paste0(REF, POS, ALT)) %>% 
-  filter(AF > 0.02) %>%   
-  filter(ACCESSION %in% samples.to.include) %>% 
-  filter(POS %in% positions.to.include) %>% 
-  ggplot(aes(x = reorder(as.factor(POS), AF), y = AF, col = ACCESSION)) + 
-    geom_jitter(size = 5, width = .25) +
-    xlab("Genomic Position with SNP") + 
-    ylab("Allele Frequency") + 
-    scale_color_manual(values = pallete) +
-    theme_bw() +
-    theme(legend.position="bottom", legend.box = "horizontal") +
-    theme(legend.box.background = element_rect(colour = "black")) +
-    theme(text=element_text(size=28)) +
-    theme(plot.title = element_text(hjust = 0.5)) +
-    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
-    theme(axis.text.x=element_text(angle=45, hjust=1)) +
-    theme(panel.grid.major.x = element_line(size = 1.5, linetype = "solid")) +
-    theme(legend.position = "none")
-
-
-```
-
-```{r}
-
-pysam.df %>% 
-  filter(ACCESSION %in% samples.to.include) %>% 
-  filter(POS %in% mutations.to.include) %>% 
-  filter(AF >= 0.02) %>% 
-  mutate(High_Confidence = ifelse(AF >= 0.05, "YES", "NO")) %>% 
-  ggplot(aes(x = STRAND_RATIO, fill = High_Confidence)) + 
-    geom_histogram() +
-    xlab("Strand Ratio") + 
-    ylab("Count") + 
-    scale_fill_manual(values = c("#fa130f", "#262aff"), name = "Greater than 5%") +
-    theme_bw(15)
-
-pysam.df %>% 
-  filter(ACCESSION %in% samples.to.include) %>% 
-  filter(POS %in% mutations.to.include) %>% 
-  filter(AF >= 0.02) %>% 
-  mutate(High_Confidence = ifelse(AF >= 0.05, "YES", "NO")) %>% 
-  ggplot(aes(x = MEAN_READPOS, fill = High_Confidence)) + 
-    geom_histogram()+
-    xlab("Mean Read Position") + 
-    ylab("Count") + 
-    scale_fill_manual(values = c("#fa130f", "#262aff"), name = "Greater than 5%") +
-    theme_bw(15)
-
-```
-
-```{r}
-variant.df %>% 
-  filter(POS == 18402)
-
-pysam.df %>% 
-  filter(POS == 18402 & ALT == "A")
+ggsave("../../results/figures/variant_postition_in_genome.svg", width = 18, height = 6, dpi = 300, units = "in")
 
 ```
 
