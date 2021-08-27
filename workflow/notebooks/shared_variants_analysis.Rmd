@@ -442,3 +442,7 @@ print(shared.variants.pysam.df)
 
 Otherwise, there are four shared minor variants that I called with `pysam`: `r (unique(shared.variants.pysam.df$POS))`. Three out four are called with all three methods. One (`14335`) is missing from `varscan`. 
 
+```{r}
+write_csv(final.variant.df, path = "../../config/data/intrahost_variants.csv")
+```
+
