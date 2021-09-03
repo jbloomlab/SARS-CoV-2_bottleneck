@@ -17,7 +17,7 @@ knitr::opts_chunk$set(echo = FALSE)
 ## ==== Install Required Packages ==== ##
 
 ## List of all packages needed -- non-BioManager installed
-packages = c("tidyverse", "scales", "RColorBrewer", "ggrepel")
+packages = c("tidyverse", "scales", "RColorBrewer", "ggrepel", "Biostrings")
 ## Check that packages are installed, if not, install them
 installed_packages <- packages %in% rownames(installed.packages())
 if (any(installed_packages == FALSE)) {
@@ -442,7 +442,71 @@ print(shared.variants.pysam.df)
 
 Otherwise, there are four shared minor variants that I called with `pysam`: `r (unique(shared.variants.pysam.df$POS))`. Three out four are called with all three methods. One (`14335`) is missing from `varscan`. 
 
+#### Low Frequnecy Shared Variants
+
+```{r What's going on with the shared variants?}
+
+reference = readDNAStringSet("../../config/ref/SARS2.fa")
+shared.positions = unique(shared.variants.pysam.df$POS)
+shared.snps = shared.variants.pysam.df %>% 
+  mutate(SNP = paste0(REF, POS, ALT)) %>% 
+  pull(SNP) %>% 
+  unique()
+
+for (i in 1:length(shared.positions)){
+  
+  pos = shared.positions[i]
+  snp = shared.snps[i]
+  substring = substr(reference, start = pos-3, stop = pos+3)
+  
+  print(paste("Position:", snp, "Sequence Context:", substring))
+}
+
+```
+
+C9502T is clearly a homopolymer region. G14335T might be considered a homopolymeric? Oddly, in all four cases, the base chages to the same base as its immediate neighbor. 
+
+
 ```{r}
 write_csv(final.variant.df, path = "../../config/data/intrahost_variants.csv")
 ```
 
+```{r}
+final.variant.df
+```
+
+```{r "A4229C"}
+
+pysam.combined.df %>% 
+  filter(POS %in% shared.positions) %>% 
+  filter(!(ACCESSION %in% low.coverage.samples)) %>% 
+  filter(!(ACCESSION %in% poor.concordance.samples)) %>% 
+  filter(POS == 4229) %>% 
+  filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
+  pull(MEAN_READPOS.one) %>% 
+  mean()
+
+
+pysam.combined.df %>% 
+  filter(POS %in% shared.positions) %>% 
+  filter(!(ACCESSION %in% low.coverage.samples)) %>% 
+  filter(!(ACCESSION %in% poor.concordance.samples)) %>% 
+  filter(POS == 4229) %>% 
+  filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
+  pull(MEAN_READPOS.two) %>% 
+  mean()
+
+
+```
+
+
+```{r "T18402A"}
+
+pysam.combined.df %>% 
+  filter(POS %in% shared.positions) %>% 
+  filter(!(ACCESSION %in% low.coverage.samples)) %>% 
+  filter(!(ACCESSION %in% poor.concordance.samples)) %>% 
+  filter(POS == 18402) %>% 
+  filter(AF.one >= 0.02 & AF.two >= 0.02)
+
+```
