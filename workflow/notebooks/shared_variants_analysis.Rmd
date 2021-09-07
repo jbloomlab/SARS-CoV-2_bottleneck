@@ -423,8 +423,9 @@ combined.final.variant.df = rbind(caller.final.variant.df, select(mutate(final.v
 # What are the variants that show up in more than one person? 
 shared.variants = combined.final.variant.df %>% 
   group_by(POS, REF, ALT, EFFECT, GENE, AA_CHANGE, Caller) %>% 
-  count() %>% 
-  filter(n > 1)
+  count() %>%
+  filter(Caller == "pysam") %>% 
+  filter(n > 1) %>% 
 
 
 print(shared.variants)
@@ -433,33 +434,18 @@ print(shared.variants)
 
 The variants that show up in multiple individuals are mostly the same between the four methods. There are two key differences: (1) One site that is fixed in multiple methods shows up as a Wuhan-1 reversion in `lofreq` - 1108, (2) There are a string of mutations at the end of the genome that show up in `ivar` and `lofreq`. 
 
-```{r Shared Variants in Pysam}
- 
-pysam.combined.df %>% 
-    filter(!(ACCESSION %in% low.coverage.samples)) %>% 
-    filter(!(ACCESSION %in% poor.concordance.samples)) %>% 
-    filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
-    filter(POS == 4229) %>% 
-    select(POS, MEAN_READPOS.one, MEAN_READPOS.two) %>% 
-    pivot_longer(!POS, names_to = "READ", values_to = "READ_POSITION") %>% 
-    group_by(READ) %>% 
-    summarize(Mean = mean(READ_POSITION))
-
-
-```
-
-Otherwise, there are four shared minor variants that I called with `pysam`: `r (unique(shared.variants.pysam.df$POS))`. Three out four are called with all three methods. One (`14335`) is missing from `varscan`. 
+Otherwise, there are four shared minor variants that I called with `pysam`: `r (unique(shared.variants$POS))`. Three out four are called with all three methods. One (`14335`) is missing from `varscan`. 
 
 #### Low Frequnecy Shared Variants
 
-```{r What's going on with the shared variants?}
+```{r Odd Variants}
 
 # Read in the reference as a indexable string
 reference = readDNAStringSet("../../config/ref/SARS2.fa")
 
 # Get the shared positions
-shared.positions = unique(shared.variants.pysam.df$POS)
-shared.snps = shared.variants.pysam.df %>% 
+shared.positions = unique(shared.variants$POS)
+shared.snps = shared.variants %>% 
   mutate(SNP = paste0(REF, POS, ALT)) %>% 
   pull(SNP) %>% 
   unique()
