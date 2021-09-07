@@ -83,7 +83,7 @@ variant.df = read_csv(variant.data) %>%
   select(!c("Library", "Path", "Aligner", "LibraryLayout", "Virus", "Host", "Source", "Percent", "spID", "Replicate")) %>% 
   distinct() %>%  # Duplicated columns when you merge with the sample data. 
   separate(Accession, into = c("ACCESSION", "REPLICATE"), sep = "_") %>% 
-  rename("AA_CHANGE" = AA_Change, "EFFECT" = Effect, "GENE" = Gene_Name)
+  dplyr::rename("AA_CHANGE" = AA_Change, "EFFECT" = Effect, "GENE" = Gene_Name)
 
 variant.df.to.join = variant.df %>% 
   select(!c("EFFECT", "GENE", "AA_CHANGE"))
@@ -180,7 +180,7 @@ selected.variant.df = inner_join(
 # Filp the consensus variants
 fipped.consensus.df = selected.variant.df %>% 
   filter(AF >= 0.5) %>% 
-  rename(ALT = "REF", REF = "ALT") %>% 
+  dplyr::rename(ALT = "REF", REF = "ALT") %>% 
   mutate(AF = (1 - AF)) %>% 
   filter(AF >= 0.02) %>% 
   separate(AA_CHANGE, into = c("WT", "AAPOS"),
@@ -233,7 +233,7 @@ caller.selected.variant.df = inner_join(
 # Filp the consensus variants
 caller.fipped.consensus.df = caller.selected.variant.df %>% 
   filter(AF >= 0.5) %>% 
-  rename(ALT = "REF", REF = "ALT") %>% 
+  dplyr::rename(ALT = "REF", REF = "ALT") %>% 
   mutate(AF = (1 - AF)) %>% 
   filter(AF >= 0.02) %>% 
   separate(AA_CHANGE, into = c("WT", "AAPOS"),
@@ -251,6 +251,8 @@ caller.final.variant.df = rbind(filter(caller.selected.variant.df, AF < 0.5), ca
   mutate(SNV = paste0(REF, POS, ALT))
 
 ```
+
+#### Shared Intrahost Variants 
 
 I wanted to see how the frequency of different variants changed throughout the boat between individuals. First, I did this with only the `pysam` variants. Most mutations are private to individuals. Some low frequency mutations are shared. 
 
@@ -432,11 +434,17 @@ print(shared.variants)
 The variants that show up in multiple individuals are mostly the same between the four methods. There are two key differences: (1) One site that is fixed in multiple methods shows up as a Wuhan-1 reversion in `lofreq` - 1108, (2) There are a string of mutations at the end of the genome that show up in `ivar` and `lofreq`. 
 
 ```{r Shared Variants in Pysam}
+ 
+pysam.combined.df %>% 
+    filter(!(ACCESSION %in% low.coverage.samples)) %>% 
+    filter(!(ACCESSION %in% poor.concordance.samples)) %>% 
+    filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
+    filter(POS == 4229) %>% 
+    select(POS, MEAN_READPOS.one, MEAN_READPOS.two) %>% 
+    pivot_longer(!POS, names_to = "READ", values_to = "READ_POSITION") %>% 
+    group_by(READ) %>% 
+    summarize(Mean = mean(READ_POSITION))
 
-shared.variants.pysam.df = shared.variants %>% 
-  filter(POS %in% pull(filter(shared.variants, Caller == "pysam"), POS))
-
-print(shared.variants.pysam.df)
 
 ```
 
@@ -446,67 +454,131 @@ Otherwise, there are four shared minor variants that I called with `pysam`: `r (
 
 ```{r What's going on with the shared variants?}
 
+# Read in the reference as a indexable string
 reference = readDNAStringSet("../../config/ref/SARS2.fa")
+
+# Get the shared positions
 shared.positions = unique(shared.variants.pysam.df$POS)
 shared.snps = shared.variants.pysam.df %>% 
   mutate(SNP = paste0(REF, POS, ALT)) %>% 
   pull(SNP) %>% 
   unique()
 
+# For each of the shared positions, get the sequence context, number of people, strand bias, and position bias
 for (i in 1:length(shared.positions)){
   
   pos = shared.positions[i]
   snp = shared.snps[i]
-  substring = substr(reference, start = pos-3, stop = pos+3)
+  print(paste("Position:", snp))
   
-  print(paste("Position:", snp, "Sequence Context:", substring))
+  # Get the number of people with this variant
+  n.crew = final.variant.df %>% filter(POS == pos) %>% pull(ACCESSION) %>% length()
+  t.crew = final.variant.df %>% pull(ACCESSION) %>% unique() %>% length()
+  print(paste0("   ", n.crew, "/", t.crew, " people have this variant."))
+  
+  # Get the sequence context
+  substring = substr(reference, start = pos-3, stop = pos+3)
+  print(paste("   Sequence Context:", substring))
+  
+  # Get the mean read positions
+  readpos.df = pysam.combined.df %>% 
+    filter(!(ACCESSION %in% low.coverage.samples)) %>% 
+    filter(!(ACCESSION %in% poor.concordance.samples)) %>% 
+    filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
+    filter(POS == pos) %>% 
+    select(POS, MEAN_READPOS.one, MEAN_READPOS.two) %>% 
+    pivot_longer(!POS, names_to = "REP", values_to = "READ_POSITION") %>% 
+    group_by(REP) %>% 
+    summarize(Mean = mean(READ_POSITION), .groups = 'drop')
+  
+  print(paste("   Mean Read Position Replicate 1:", filter(readpos.df, REP == "MEAN_READPOS.one")$Mean))
+  print(paste("   Mean Read Position Replicate 2:", filter(readpos.df, REP == "MEAN_READPOS.two")$Mean))
+
+
+  # Get the strand bias
+  readpos.df = pysam.combined.df %>% 
+    filter(!(ACCESSION %in% low.coverage.samples)) %>% 
+    filter(!(ACCESSION %in% poor.concordance.samples)) %>% 
+    filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
+    filter(POS == pos) %>% 
+    select(POS, STRAND_RATIO.one, STRAND_RATIO.two) %>% 
+    pivot_longer(!POS, names_to = "REP", values_to = "BIAS") %>% 
+    group_by(REP) %>% 
+    summarize(Mean = mean(BIAS), .groups = 'drop')
+  
+  print(paste("   Mean Strand Ratio Replicate 1:", filter(readpos.df, REP == "STRAND_RATIO.one")$Mean))
+  print(paste("   Mean Strand Ratio Replicate 2:", filter(readpos.df, REP == "STRAND_RATIO.two")$Mean))
+  print("----------------------------------------------")
+
 }
 
 ```
 
-C9502T is clearly a homopolymer region. G14335T might be considered a homopolymeric? Oddly, in all four cases, the base chages to the same base as its immediate neighbor. 
+(1) `C9502T` is clearly a homopolymer region. 
 
+(2) `G14335T` might be considered a homopolymeric? However, the strand bias and position bias are pretty off the charts for this variant. 
+(3) `A4229C` is similar to above. There is a pretty clear strand/read position bias. 
+
+(4) `T18402A` is passable. 
+
+Oddly, in all four cases, the base chages to the same base as its immediate neighbor. 
+
+#### Replicate Frequency differences. 
+
+This is part of the final supplementary figure showing that the freqency betweem replicates is off for these alleles. 
+
+```{r Frequency Discrepency, warning=F, message=F, fig.width= 9, fig.height= 7, fig.align="center"}
+
+pysam.combined.df %>% 
+    filter(!(ACCESSION %in% low.coverage.samples)) %>% 
+    filter(!(ACCESSION %in% poor.concordance.samples)) %>% 
+    filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
+    filter(POS %in% shared.positions) %>% 
+    mutate(SNP = paste0(REF, POS, ALT)) %>% 
+    ggplot(aes(y = AF.one, x = AF.two)) +
+      geom_abline(intercept = 0, col = "red", size = 1, linetype = 2) + 
+      geom_point(size = 2) + 
+      geom_smooth(method = "lm", se = FALSE) +
+      facet_wrap(~SNP) +
+      scale_y_continuous(limits = c(0, .10),  labels = scales::percent) +
+      scale_x_continuous(limits = c(0, .10), labels = scales::percent, guide = guide_axis(angle = 25)) +
+      xlab("Allele Frequency Replicate Two") + 
+      ylab("Allele Frequency Replicate One") + 
+      theme_bw(20)
+
+```
+
+What is the "null" distributions for allele frequency correlation? 
+
+```{r Frequency Null, warning=F, message=F, fig.width= 9, fig.height= 7, fig.align="center"}
+
+snps.for.null = final.variant.df %>% 
+  filter(!SNP %in% shared.snps) %>% 
+  pull(POS) %>% 
+  unique()
+
+# Expected correlation 
+pysam.combined.df %>% 
+    filter(!(ACCESSION %in% low.coverage.samples)) %>% 
+    filter(!(ACCESSION %in% poor.concordance.samples)) %>% 
+    filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
+    filter(POS %in% snps.for.null) %>% 
+    mutate(SNP = paste0(REF, POS, ALT)) %>% 
+    ggplot(aes(y = AF.one, x = AF.two)) +
+      geom_abline(intercept = 0, col = "red", size = 1, linetype = 2) + 
+      geom_point(size = 2) + 
+      geom_smooth(method = "lm", se = FALSE) +
+      scale_y_continuous(limits = c(0, 1),  labels = scales::percent) +
+      scale_x_continuous(limits = c(0, 1), labels = scales::percent, guide = guide_axis(angle = 25)) +
+      xlab("Allele Frequency Replicate Two") + 
+      ylab("Allele Frequency Replicate One") + 
+      theme_bw(20)
+
+```
+
+#### END
 
 ```{r}
 write_csv(final.variant.df, path = "../../config/data/intrahost_variants.csv")
 ```
 
-```{r}
-final.variant.df
-```
-
-```{r "A4229C"}
-
-pysam.combined.df %>% 
-  filter(POS %in% shared.positions) %>% 
-  filter(!(ACCESSION %in% low.coverage.samples)) %>% 
-  filter(!(ACCESSION %in% poor.concordance.samples)) %>% 
-  filter(POS == 4229) %>% 
-  filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
-  pull(MEAN_READPOS.one) %>% 
-  mean()
-
-
-pysam.combined.df %>% 
-  filter(POS %in% shared.positions) %>% 
-  filter(!(ACCESSION %in% low.coverage.samples)) %>% 
-  filter(!(ACCESSION %in% poor.concordance.samples)) %>% 
-  filter(POS == 4229) %>% 
-  filter(AF.one >= 0.02 & AF.two >= 0.02) %>% 
-  pull(MEAN_READPOS.two) %>% 
-  mean()
-
-
-```
-
-
-```{r "T18402A"}
-
-pysam.combined.df %>% 
-  filter(POS %in% shared.positions) %>% 
-  filter(!(ACCESSION %in% low.coverage.samples)) %>% 
-  filter(!(ACCESSION %in% poor.concordance.samples)) %>% 
-  filter(POS == 18402) %>% 
-  filter(AF.one >= 0.02 & AF.two >= 0.02)
-
-```
