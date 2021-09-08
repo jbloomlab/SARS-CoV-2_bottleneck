@@ -532,6 +532,8 @@ pysam.combined.df %>%
       ylab("Allele Frequency Replicate One") + 
       theme_bw(20)
 
+ggsave("../../results/figures/discrepency_in_frequency_between_replicates.png", width = 9, height = 7, dpi = 300, units = "in")
+
 ```
 
 What is the "null" distributions for allele frequency correlation? 

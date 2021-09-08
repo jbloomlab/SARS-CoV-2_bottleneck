@@ -188,12 +188,12 @@ for (i in 1:length(samples)) {
       geom_vline(xintercept = 0.02, col = "blue", linetype = 2) + 
       facet_wrap(~ACCESSION) +
       scale_color_manual(values = c("#080000","#b80000")) +
-      scale_x_continuous(limits = c(0, 1)) + 
-      scale_y_continuous(limits = c(0, 1)) + 
+      scale_x_continuous(limits = c(0, 1), labels = scales::percent, guide = guide_axis(angle = 25)) + 
+      scale_y_continuous(limits = c(0, 1), labels = scales::percent) + 
       xlab("") +
       ylab("") +
       theme_classic() +
-      theme(text=element_text(size= 30,  family="Helvetica")) +
+      theme(text=element_text(size= 25,  family="Helvetica")) +
       theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
       theme(panel.background = element_rect(fill = NA, color = "black")) +
       theme(plot.title = element_text(hjust = 0.5)) + 
@@ -208,12 +208,12 @@ for (i in 1:length(samples)) {
       geom_hline(yintercept = 0.02, col = "blue", linetype = 2) + 
       geom_vline(xintercept = 0.02, col = "blue", linetype = 2) + 
       scale_color_manual(values = c("#080000","#b80000")) +
-      scale_x_continuous(limits = c(0, .10)) + 
-      scale_y_continuous(limits = c(0, .10)) + 
+      scale_x_continuous(limits = c(0, .10), labels = scales::percent, guide = guide_axis(angle = 25)) + 
+      scale_y_continuous(limits = c(0, .10), labels = scales::percent) + 
       xlab("") +
       ylab("") +
       theme_classic() +
-      theme(text=element_text(size = 18,  family="Helvetica")) +
+      theme(text=element_text(size = 14,  family="Helvetica")) +
       theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
       theme(panel.background = element_rect(fill = NA, color = "black")) +
       theme(plot.title = element_text(hjust = 0.5)) + 
@@ -234,7 +234,7 @@ final_plot = gridExtra::grid.arrange(arrangeGrob(grobs = concordance_plot_list,
                           bottom = textGrob("Allele Frequency Replicate One", hjust = .5,
                                             gp = gpar(col = "black", fontsize = 35))))
 
-ggsave("../../results/figures/replicate_comparison_pysam.png", plot = final_plot, width = 25, height = 20, dpi = 300, units = "in")
+ggsave("../../results/figures/replicate_comparison_pysam.png", plot = final_plot, width = 28, height = 22, dpi = 300, units = "in")
 
 ```
 
