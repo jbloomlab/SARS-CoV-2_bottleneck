@@ -124,7 +124,7 @@ Main takeaway - *all of the variants that I called with Pysam have been called b
 
 ```{r Compare Callers, message=F, warning=F}
 
-upset.plt = pysam.df %>% 
+plt = pysam.df %>% 
   mutate(Caller = "pysam") %>% 
   select(colnames(variant.df)) %>% 
   rbind(., variant.df) %>%  
@@ -148,10 +148,8 @@ upset.plt = pysam.df %>%
                           "pysam"), sets.bar.color = "#56B4E9",
       order.by = "freq", empty.intersections = "on", text.scale = 1.5)
 
-upset.plt
-
-png(filename = "../../results/figures/variant_caller_upset_plot.png", width = 7, height = 5)
-upset.plt
+pdf("../../results/figures/variant_caller_upset_plot.pdf", onefile=FALSE)
+plt
 dev.off()
 
 ```
