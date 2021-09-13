@@ -280,7 +280,7 @@ final.variant.df %>%
     facet_wrap(~fct_reorder(SNP, POS, min), ncol = 5) +
     geom_point(size = 3) +
     ggtitle("Pysam") + 
-    xlab("Patient") +
+    xlab("Crew Member") +
     ylab("Allele Frequency") + 
     scale_color_manual(values = c("#bd0000", "#0013bd", "#bd00ba"), name = "Type") +
     scale_y_continuous(breaks = c(0, 0.5, 1), limits = c(0,1) , expand = c(0,0)) +  

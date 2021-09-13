@@ -87,7 +87,7 @@ variant.df = read_csv(variant.data) %>%
   select(!c("Library", "Path", "Aligner", "LibraryLayout", "Virus", "Host", "Source", "Percent", "spID", "Replicate")) %>% 
   distinct() %>%  # Duplicated columns when you merge with the sample data. 
   separate(Accession, into = c("ACCESSION", "REPLICATE"), sep = "_") %>% 
-  rename("AA_CHANGE" = AA_Change, "EFFECT" = Effect, "GENE" = Gene_Name)
+  dplyr::dplyr::rename("AA_CHANGE" = AA_Change, "EFFECT" = Effect, "GENE" = Gene_Name)
 
 variant.df.to.join = variant.df %>% 
   select(!c("EFFECT", "GENE", "AA_CHANGE"))
@@ -211,7 +211,7 @@ selected.variant.df = inner_join(
 # Filp the consensus variants
 fipped.consensus.df = selected.variant.df %>% 
   filter(AF >= 0.5) %>% 
-  rename(ALT = "REF", REF = "ALT") %>% 
+  dplyr::rename(ALT = "REF", REF = "ALT") %>% 
   mutate(AF = (1 - AF)) %>% 
   filter(AF >= 0.02) %>% 
   separate(AA_CHANGE, into = c("WT", "AAPOS"),
@@ -264,7 +264,7 @@ caller.selected.variant.df = inner_join(
 # Filp the consensus variants
 caller.fipped.consensus.df = caller.selected.variant.df %>% 
   filter(AF >= 0.5) %>% 
-  rename(ALT = "REF", REF = "ALT") %>% 
+  dplyr::rename(ALT = "REF", REF = "ALT") %>% 
   mutate(AF = (1 - AF)) %>% 
   filter(AF >= 0.02) %>% 
   separate(AA_CHANGE, into = c("WT", "AAPOS"),
@@ -290,7 +290,7 @@ Ideally, I would have a direct measurement of the number of viral transcripts in
 ```{r Pysam iSNVs vs. Ct, warning=F, message=F, width = 7, height = 5}
 
 ct_df = read_csv(sample_metadata) %>% 
-  rename("ACCESSION" = SpID, "Ct" = avg_ct) %>% 
+  dplyr::rename("ACCESSION" = SpID, "Ct" = avg_ct) %>% 
   select(ACCESSION, Ct) %>% 
   mutate(ACCESSION = as.character(ACCESSION))
 
@@ -354,7 +354,7 @@ final.variant.df %>%
   ggplot(aes(x = n, y = reorder(ACCESSION, -n))) + 
     geom_bar(stat = 'identity') + 
     geom_text(aes(x = 4.5, y = "10040"), label = paste("Average ~ ", average.number.of.minor.variants), size = 6) +
-    ylab('Crewmember') + 
+    ylab('Crew Member') + 
     xlab('Number of minor variants') +
     theme_bw(18)
 
