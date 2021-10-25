@@ -1,0 +1,177 @@
+---
+title: "6. Global Phylogeny Analysis"
+author: "Will Hannon"
+date: "10/25/2021"
+output: html_document
+---
+
+The goal of this notebook is to make a figure quality phylogenetic tree for Figure 2 of the paper. I've taken the phylogeny from `IQtree` made in the notebook `Phylogenetic-Analysis.ipynb` and made a pretty figure with `ggtree`.  
+
+```{r Setup, include=FALSE}
+require("knitr")
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r Required Packages, message=FALSE, warning=FALSE, echo=FALSE}
+
+## ==== Install Required Packages ==== ##
+
+## List of all packages needed -- non-BioManager installed
+packages = c("tidyverse", "ggtree", "treeio", "tidytree")
+## Check that packages are installed, if not, install them
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+## Packages loading
+invisible(lapply(c(packages), library, character.only = TRUE))
+
+```
+
+```{r Filepaths, include=FALSE}
+
+## ==== File paths input data ==== ##
+
+# Paths to GISAID data
+epi.path = "../../config/gisaid/2021-08-03-GISAID-Epi-Metadata.tsv"
+meta.path = "../../config/gisaid/2021-08-02-GISAID-metadata.tsv"
+boat.path = "../../config/gisaid/boat.csv"
+
+# Phylogenetic Tree from IQtree
+tree.path = "../../results/phylogeny/global_phylogeny.aligned.fa.treefile"
+
+```
+
+```{r Import Data, warning=F, message=F}
+
+# Metadata from GISAID
+gisaid_epi_df = read_tsv(epi.path)
+gisaid_data_df = read_tsv(meta.path)
+gisaid_boat_samples = read_csv(boat.path) %>% 
+  pull(`Accession ID`)
+
+# Phylogenetic Tree from IQtree
+tree = read.iqtree(tree.path)
+
+```
+
+I rooted the tree using the Wuhan-1 reference sequence (NC_045512.2) as the outgroup.
+```{r Rooting}
+
+# Name of the outgroup for rooting the tree
+root = "NC_045512.2"
+
+# Root the tree
+tree@phylo = root(tree@phylo, outgroup = root)
+
+```
+
+I combined the data from GISAID with the tree to annotate the tip nodes for plotting.
+```{r Combining Data, warning=F, message=F}
+
+# Tip names from tree
+tip.names.df = tibble(node = tree@phylo$tip.label) %>% 
+  separate(node, into = c("strain", "collect", "depo"), remove = F, sep = "\\|") %>% 
+  select(node, strain)
+
+# Mapping the tip names from the tree to corresponding strain/gisaid ids
+tip.mappings.df = gisaid_data_df %>% 
+  dplyr::select(strain = "Virus name", gisaid_epi_isl = "Accession ID") %>% 
+  filter(strain %in% tip.names.df$strain) %>% 
+  full_join(tip.names.df, ., by="strain")
+  
+# Use the mappings to get only the relevant fields of metadata
+external.metadata.df = gisaid_epi_df %>% 
+  select(c("gisaid_epi_isl",
+    "location",
+    "Nextstrain_clade",
+    "pango_lineage",
+    "division_exposure")) %>% 
+  filter(gisaid_epi_isl %in% tip.mappings.df$gisaid_epi_isl) %>% 
+  dplyr::full_join(tip.mappings.df, ., by="gisaid_epi_isl") 
+  
+  
+# Annotate a new column with the Clade and Boat status - i.e. what's going to be grouped on the tree
+external.metadata.df = external.metadata.df %>% 
+  mutate(nextstrain_clade = if_else(gisaid_epi_isl %in% gisaid_boat_samples, "Boat", Nextstrain_clade)) %>% 
+  mutate(nextstrain_clade = if_else(nextstrain_clade == "20E (EU1)", "20E", nextstrain_clade)) %>% 
+  mutate(nextstrain_clade = if_else(is.na(nextstrain_clade), "Root", nextstrain_clade)) %>% 
+  select(!Nextstrain_clade) %>% 
+  mutate(boat = if_else(nextstrain_clade == "Boat", T, F))
+
+# Join the external metadata back with the tree
+tree_tibble = full_join(as_tibble(tree), external.metadata.df, by = c("label" = "node"))
+
+as.treedata(tree_tibble)
+
+```
+
+I saved a list of the node #'s for the boat samples and the outlier for annotating on tree. 
+```{r Annotated nodes}
+
+# Boat nodes
+boat.nodes = tree_tibble %>% 
+  filter(nextstrain_clade == "Boat") %>% 
+  filter(strain != "hCoV-19/USA/WA-UW-10136/2020") %>% 
+  pull(node)
+
+# Outlier nodes
+outlier.node =tree_tibble %>% 
+  filter(strain == "hCoV-19/USA/WA-UW-10136/2020") %>% 
+  pull(node)
+
+# Samples that break the monophyletic nature of the boat
+break.monophyletic = 'hCoV-19/USA/WA-UW-10510/2020'
+break.monophyletic.node = tree_tibble %>% 
+  filter(strain ==break.monophyletic) %>% 
+  pull(node)
+
+print(paste("Breaks the monophyletic nature of the boat clade:", break.monophyletic))
+```
+
+Finally, I plotted the 'representative' global phylogeney with `ggtree`. 
+```{r Plotting, fig.align="center", fig.width=7, fig.height=14}
+
+# Colors for the plot - look like nextstrain
+clade.colors = c("Boat" = "darkred", 
+                 "Root" = "darkgrey",
+                 "19A" = "#3C36C5",
+                 "19B" = "#3965D5",
+                 "20A" = "#428DC7",
+                 "20B" = "#72BB80",
+                 "20C" = "#55ACA6",
+                 "20D" = "#95C464",
+                 "20E" = "#E2B548",
+                 "20F" = "#B44126")
+
+clades = c("Boat",
+           "19A",
+           "19B",
+           "20A",
+           "20B",
+           "20C",
+           "20D",
+           "20E",
+           "20F")
+
+# Plot the tree
+as.treedata(tree_tibble) %>% 
+  ggtree(size = 1.1, col = "darkgrey") + 
+    geom_cladelabel(node=MRCA(tree_tibble, boat.nodes)$node, label="Boat Clade", col='darkred', offset = .000015, offset.text = .000015,  barsize = 1, fontsize = 5) +
+    geom_cladelabel(node=outlier.node, label="WA-UW-10136", col='darkred',  offset = .00001) +
+    geom_cladelabel(node=break.monophyletic.node, label="*",fontsize = 5, col='#55ACA6',  offset = .000001) +
+    geom_tippoint(aes(color=nextstrain_clade), size=1.3) + 
+    geom_point2(aes(subset = strain == break.monophyletic), size=1.3, col='#55ACA6') + 
+    geom_treescale(x = 0, y = -10,  fontsize=6, linesize=1.3, offset=1) +
+    scale_color_manual(breaks = clades, values = clade.colors) +
+    labs(col="") +
+    theme(legend.position = c(0.8, 0.2),
+          legend.text=element_text(size=15))
+
+
+ggsave("../../results/figures/representative-global-phylogeny.png", width = 7, height = 14, dpi = 300)
+ggsave("../../results/figures/representative-global-phylogeny.svg", width = 7, height = 14)
+
+
+```
+
