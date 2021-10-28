@@ -67,7 +67,7 @@ pysam.to.join.df = pysam.df %>%
 pysam.combined.df = full_join(
   filter(pysam.to.join.df, REPLICATE == "1"),
   filter(pysam.to.join.df, REPLICATE == "2"), 
-  by = c("ACCESSION", "POS", "REF", "ALT", "EFFECT", "GENE", "CODON_POS", "AA_CHANGE"),
+  by = c("ACCESSION", "POS", "REF", "ALT", "EFFECT", "CODON_POS", "AA_CHANGE"),
   suffix = c(".one", ".two")
   ) %>% 
   select(!c("REPLICATE.one", "REPLICATE.two")) %>% 
@@ -160,7 +160,7 @@ poor.concordance.samples = pysam.combined.df %>%
   mutate(DIFF = abs(AF.one - AF.two)) %>% 
   group_by(ACCESSION) %>% 
   summarise(MEAN_DIFF = mean(DIFF)) %>% 
-  filter(MEAN_DIFF >= 0.025) %>% 
+  filter(MEAN_DIFF >= 0.020) %>% 
   pull(ACCESSION)
 
 poor.concordance.samples = poor.concordance.samples[which(!poor.concordance.samples %in% low.coverage.samples)]
@@ -178,6 +178,9 @@ Next, I wanted to select the main variants to include in the downstream analyses
 
 Finally, the variants are combined between the replicates by averaging the allele frequency. Then, alleles present at more than 50% frequency and less than 98% frequency are flipped to their non-consensus counterparts. 
 
+
+### TODO: Determine if it's important to revert the consensus variants to minor variants
+it might be more import to compare things to the 'boat consensus'.
 ```{r Prepare Final Pysam Variants, warning=F, message=F}
 
 # Only combine those SNPs that are in both samples
