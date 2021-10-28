@@ -74,7 +74,7 @@ pysam.to.join.df = pysam.df %>%
 pysam.combined.df = full_join(
   filter(pysam.to.join.df, REPLICATE == "1"),
   filter(pysam.to.join.df, REPLICATE == "2"), 
-  by = c("ACCESSION", "POS", "REF", "ALT", "EFFECT", "GENE", "CODON_POS", "AA_CHANGE"),
+  by = c("ACCESSION", "POS", "REF", "ALT", "EFFECT", "CODON_POS", "AA_CHANGE"),
   suffix = c(".one", ".two")
   ) %>% 
   select(!c("REPLICATE.one", "REPLICATE.two")) %>% 
@@ -86,6 +86,7 @@ pysam.combined.df = full_join(
 
 
 ```
+
 
 ```{r Format Variant Data, warning=F, message=F}
 
@@ -238,7 +239,7 @@ ggsave("../../results/figures/replicate_comparison_pysam.png", plot = final_plot
 
 In order to determine rationally which samples should be included and which should be excluded, I screen samples based on the average deviation between replicate frequencies. This method weights deviation amoung high frequency variants more than low frequency variants. 
 
-This histogram shows which samples won't be included in the analysis because the allele frequences between replicates are to dissimilar. In this case, I cut off the long tail. All samples that had **more than 0.025 mean difference between SNPs** were not included in the downstream analysis. 
+This histogram shows which samples won't be included in the analysis because the allele frequences between replicates are to dissimilar. In this case, I cut off the long tail. All samples that had **more than 0.020 mean difference between SNPs** were not included in the downstream analysis. 
 
 ```{r Concordance Difference Histogram, message = F, warning = F, fig.width= 7, fig.height= 5, fig.align='center'}
 
@@ -252,7 +253,7 @@ pysam.combined.df %>%
   summarise(MEAN_DIFF = mean(DIFF)) %>% 
   ggplot(aes(x = MEAN_DIFF)) + 
     geom_histogram(bins = 30) + 
-    geom_vline(xintercept = 0.025, col = "red") +
+    geom_vline(xintercept = 0.020, col = "red") +
     xlab("Mean Difference Between Replicates") +
     ylab("Samples") +
     theme_classic() +
@@ -268,7 +269,7 @@ poor.concordace.samples = pysam.combined.df %>%
   mutate(DIFF = abs(AF.one - AF.two)) %>% 
   group_by(ACCESSION) %>% 
   summarise(MEAN_DIFF = mean(DIFF)) %>% 
-  filter(MEAN_DIFF >= 0.025) %>% 
+  filter(MEAN_DIFF >= 0.020) %>% 
   pull(ACCESSION)
 
 ggsave("../../results/figures/average_allele_difference.svg", width = 7, height = 5, dpi = 300, units = "in")
