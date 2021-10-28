@@ -240,7 +240,7 @@ final.variant.df = rbind(filter(selected.variant.df, AF < 0.5), fipped.consensus
 caller.selected.variant.df = inner_join(
     filter(variant.df, REPLICATE == "1"),
     filter(variant.df, REPLICATE == "2"), 
-    by = c("ACCESSION", "POS", "REF", "ALT", "EFFECT", "GENE", "AA_CHANGE", "Caller"),
+    by = c("ACCESSION", "POS", "REF", "ALT", "EFFECT", "AA_CHANGE", "Caller"),
     suffix = c(".one", ".two")
     ) %>% 
     # Remove the replicate columns 

@@ -5,7 +5,7 @@ date: "4/13/2021"
 output: html_document
 ---
 
-The goal of this notebook is to look at the iwthin host variants that are shared between crewmembers. Do any of these variants suggest that they were transmitted at low frequency between individuals? Or, are most shared variants the result of some other process - i.e. homoplasy, sequencing error, batch effect, etc..?
+The goal of this notebook is to look at the within host variants that are shared between crewmembers. Do any of these variants suggest that they were transmitted at low frequency between individuals? Or, are most shared variants the result of some other process - i.e. homoplasy, sequencing error, batch effect, etc..?
 
 ```{r Setup, include=FALSE}
 require("knitr")
@@ -63,7 +63,7 @@ pysam.to.join.df = pysam.df %>%
 pysam.combined.df = full_join(
   filter(pysam.to.join.df, REPLICATE == "1"),
   filter(pysam.to.join.df, REPLICATE == "2"), 
-  by = c("ACCESSION", "POS", "REF", "ALT", "EFFECT", "GENE", "CODON_POS", "AA_CHANGE"),
+  by = c("ACCESSION", "POS", "REF", "ALT", "EFFECT", "CODON_POS", "AA_CHANGE"),
   suffix = c(".one", ".two")
   ) %>% 
   select(!c("REPLICATE.one", "REPLICATE.two")) %>% 
@@ -153,7 +153,7 @@ Finally, the variants are combined between the replicates by averaging the allel
 selected.variant.df = inner_join(
   filter(pysam.to.join.df, REPLICATE == "1"),
   filter(pysam.to.join.df, REPLICATE == "2"), 
-  by = c("ACCESSION", "POS", "REF", "ALT", "EFFECT", "GENE", "CODON_POS", "AA_CHANGE"),
+  by = c("ACCESSION", "POS", "REF", "ALT", "EFFECT", "CODON_POS", "AA_CHANGE"),
   suffix = c(".one", ".two")
   ) %>% 
   # Remove the replicate columns 
@@ -258,6 +258,9 @@ caller.final.variant.df = rbind(filter(caller.selected.variant.df, AF < 0.5), ca
 
 #### Shared Intrahost Variants 
 
+
+**TODO**: Fix these plots to show mutations relative to the boat consensus - however we end up defining that. 
+
 I wanted to see how the frequency of different variants changed throughout the boat between individuals. First, I did this with only the `pysam` variants. Most mutations are private to individuals. Some low frequency mutations are shared. 
 
 ```{r Per Pos Frequency - minor only, echo=F, message=F, warning=F, fig.width= 15, fig.height= 15, fig.align="center"}
@@ -361,8 +364,7 @@ ggsave(plot = final_plot, "../../results/figures/pysam_shared_variants_frequency
 
 ```
 
-```
-
+### Comparison with other variant callers
 
 Same thing, but for `lofreq`:
 ```{r Per Pos Frequency - lofreq, echo=F, message=F, warning=F, fig.width= 15, fig.height= 15, fig.align="center"}
@@ -630,6 +632,6 @@ pysam.combined.df %>%
 #### END
 
 ```{r}
-write_csv(final.variant.df, path = "../../config/data/intrahost_variants.csv")
+# write_csv(final.variant.df, path = "../../config/data/intrahost_variants.csv")
 ```
 

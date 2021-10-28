@@ -28,6 +28,7 @@ invisible(lapply(c(packages), library, character.only = TRUE))
 
 ```
 
+
 ```{r Paths to data, echo = FALSE}
 # Data from `samtools stats`
 stats.data = "../../results/coverage/coverage.stats" 
@@ -41,13 +42,18 @@ depth.of.coverage.data = "../../results/coverage/merged.depth"
 # Annotation of SARS-CoV-2 gene positions
 annotation.data = "../../config/data/sars_cov_2_annot.csv" 
 
+```
 
+
+```{r Setup}
 # Colors for plotting
 experiment.colors = c("#000000", "#7a7a7a")
 
 # Make the figure directory if it doesn't exist
 dir.create("../../results/figures", showWarnings = TRUE, recursive = FALSE, mode = "0777")
+
 ```
+
 
 ```{r Format data, warning=FALSE, message=FALSE}
 
@@ -104,7 +110,6 @@ The coverage pattern is pretty erratic since this isn't amplicon sequencing - th
 ```{r Failed QC}
 
 # Low coverage samples - These are the samples that failed our quality control. The coverage was less than 100X in 20% of the genome.
-
 low.coverage.samples = average.depth.df %>% filter(Percent < 80) %>% pull(Accession)
 low.coverage.runs = average.depth.df %>% filter(Percent < 80) %>% pull(Run)
 
@@ -113,7 +118,7 @@ print(low.coverage.samples)
 
 ```
 
-This leads to the exclusion of 6/24 crewmembers: 10027, 10114, 10028, 10138, 10039, and 10107
+This leads to the exclusion of 6/24 crewmembers: `10027, 10114, 10028, 10138, 10039, and 10107`
 
 ```{r Coverage Distribution, message=FALSE, warning=FALSE, fig.width=15, fig.height=6, fig.align='center'}
 
