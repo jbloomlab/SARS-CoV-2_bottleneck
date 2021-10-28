@@ -5,7 +5,7 @@ date: "1/11/2021"
 output: html_document
 ---
 
-The goal of this notebook is assess some of the non-coverage related aspects of library quality. I also look at some of the background data, including Ct values for each sample, the number of people who were infected on the boat, and more. This notebook provides background and context for the outbreak samples.
+The goal of this notebook is check some of the non-coverage related aspects of library quality. I also look at some of the background data, including Ct values for each sample, the number of people who were infected on the boat, and more. This notebook provides background and context for the outbreak samples.
 
 ```{r Setup, include=FALSE}
 require("knitr")
@@ -45,10 +45,16 @@ sample.data = "../../config/samples.csv"
 # Path to boat metadata
 boat.data = "../../config/data/Boat_Sample_Metadata.csv"
 
+```
+
+
+```{r Setup}
 
 # Colors for plotting
 experiment.colors = c("#000000", "#7a7a7a")
+
 ```
+
 
 ```{r Load in data, warning=FALSE, message = FALSE}
 
@@ -96,7 +102,7 @@ donut.df$labelPosition <- (donut.df$ymax + donut.df$ymin) / 2
 
 ggplot(donut.df, aes(ymax=ymax, ymin=ymin, xmax=4, xmin=3, fill=Category)) +
   geom_rect() +
-  geom_label(x=3.5, aes(y=labelPosition, label=Count), size=8) +
+  geom_label(x=3.5, aes(y=labelPosition, label=Count), size=8, fill = "white") +
   scale_fill_brewer(palette=9) +
   coord_polar(theta="y") +
   xlim(c(2, 4)) +
