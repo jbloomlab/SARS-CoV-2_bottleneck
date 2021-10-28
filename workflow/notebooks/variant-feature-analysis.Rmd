@@ -87,7 +87,7 @@ variant.df = read_csv(variant.data) %>%
   select(!c("Library", "Path", "Aligner", "LibraryLayout", "Virus", "Host", "Source", "Percent", "spID", "Replicate")) %>% 
   distinct() %>%  # Duplicated columns when you merge with the sample data. 
   separate(Accession, into = c("ACCESSION", "REPLICATE"), sep = "_") %>% 
-  dplyr::dplyr::rename("AA_CHANGE" = AA_Change, "EFFECT" = Effect, "GENE" = Gene_Name)
+  dplyr::rename("AA_CHANGE" = AA_Change, "EFFECT" = Effect, "GENE" = Gene_Name)
 
 variant.df.to.join = variant.df %>% 
   select(!c("EFFECT", "GENE", "AA_CHANGE"))
@@ -456,3 +456,138 @@ ggsave("../../results/figures/variant_postition_in_genome.svg", width = 18, heig
 
 ```
 
+```{r Fixed Variants Distribution per person, message=F, warning=F, fig.width=15, fig.height=15 fig.align="center"}
+
+label = annotation.df %>% 
+  mutate(POS = (start+end)/2) %>% 
+  mutate(AF = -(.075/2)) %>% 
+  select(gene, POS, AF) 
+
+selected.variant.df %>% 
+  filter(AF >= 0.9) %>% 
+  mutate(ACCESSION = paste0("Crew Member ", ACCESSION)) %>% 
+  mutate(EFFECT = if_else(is.na(EFFECT), "synonymous", EFFECT)) %>% 
+  ggplot(aes(x = POS, y = AF, col = EFFECT, fill = EFFECT))+
+    geom_point(stat="identity", size = 3, stroke = 2, alpha = 0.5) + 
+    geom_bar(stat="identity", position = position_identity(), width=.01, alpha = 0.5) +
+    geom_text_repel(aes(label = SNP),box.padding = 1.5, size = 5, nudge_y = -.005) +
+    facet_wrap(~ACCESSION, ncol = 3) +
+    xlab("Position") +
+    ylab("Allele Frequency") +
+    scale_x_continuous(breaks=c(0,5000,10000,15000,20000,25000,30000))  +
+    scale_y_continuous(breaks=c(0,0.25,0.5,0.75,1), limits = c(-0.075, 1.1))  +
+    scale_color_manual(name = "Effect", values=effect_colors) +
+    scale_fill_manual(name = "Effect", values=effect_colors) +
+    annotate("rect", xmin = 0, xmax = ORF1ab[[2]]-1, ymin = -.075, ymax = -.01 ,
+             alpha = .2, fill = "grey", col = "black", size = .1) + 
+    annotate("rect", xmin = ORF1ab[[2]], xmax = ORF1ab[[3]], ymin =  -.075, ymax = -.01 ,
+               alpha = .2, fill = "dodgerblue2", col = "black", size = .1) +
+    annotate(geom = "text", x = label[[2]][1], y = label[[3]][1], label = label[[1]][1], size = 7) +
+    annotate("rect", xmin = Spike[[2]], xmax = Spike[[3]], ymin = -.075, ymax = -.01 ,
+             alpha = .2, fill = "yellow3", col = "black", size = .1) +
+    annotate(geom = "text", x = label[[2]][2], y = label[[3]][2], label = label[[1]][2], size = 7) +
+    annotate("rect", xmin = ORF3a[[2]], xmax = ORF3a[[3]], ymin = -.075, ymax = -.01 ,
+             alpha = .2, fill = "#FF7F00", col = "black", size = .1) +
+    # annotate(geom = "text", x = label[[2]][3], y = label[[3]][3], label = "3a", size = 7) +
+    annotate("rect", xmin = Envelope[[2]], xmax = Envelope[[3]], ymin = -.075, ymax = -.01 ,
+             alpha = .2, fill =  "#6A3D9A", col = "black", size = .1) +
+    # annotate(geom = "text", x = label[[2]][4], y = label[[3]][4], label = "E", size = 7) +
+    annotate("rect", xmin = Membrane[[2]], xmax = Membrane[[3]], ymin = -.075, ymax = -.01 ,
+             alpha = .2, fill =  "green4", col = "black", size = .1) +
+    # annotate(geom = "text", x = label[[2]][5], y = label[[3]][5], label = "M", size = 7) +
+    annotate("rect", xmin = ORF6[[2]], xmax = ORF6[[3]], ymin = -.075, ymax = -.01 ,
+             alpha = .2, fill = "#E31A1C", col = "black", size = .1) +
+    # annotate(geom = "text", x = label[[2]][6], y = label[[3]][6], label = "6", size = 7) +
+    annotate("rect", xmin = ORF7a[[2]], xmax = ORF7a[[3]], ymin = -.075, ymax = -.01 ,
+             alpha = .2, fill = "#FB9A99", col = "black", size = .1) +
+    #annotate(geom = "text", x = label[[2]][7], y = label[[3]][7], label = "7a", family = "helvetica", size = 7) +
+    annotate("rect", xmin = ORF8[[2]], xmax = ORF8[[3]], ymin = -.075, ymax = -.01 ,
+             alpha = .2, fill = "orchid1", col = "black", size = .1) +
+    # annotate(geom = "text", x = label[[2]][8], y = label[[3]][8], label = "8", size = 7) +
+    annotate("rect", xmin = Nucleocapsid[[2]], xmax = Nucleocapsid[[3]], ymin = -.075, ymax = -.01 ,
+             alpha = .2, fill = "maroon", col = "black", size = .1) +
+    # annotate(geom = "text", x = label[[2]][9], y = label[[3]][9], label = "N", size = 7) +
+    annotate("rect", xmin = ORF10[[2]], xmax = ORF10[[3]], ymin = -.075, ymax = -.01 ,
+             alpha = .2, fill =  "skyblue2", col = "black", size = .1) +
+    annotate("rect", xmin = ORF10[[3]]+1, xmax = 29903, ymin = -.075, ymax = -.01 ,
+             alpha = .2, fill = "grey", col = "black", size = .1) +
+    annotate(geom = "text", x = -400, y = label[[3]][1], label = "5'", size = 7) +
+    annotate(geom = "text", x = 30400, y = label[[3]][1], label = "3'", size = 7) +
+    #annotate(geom = "text", x = label[[2]][10], y = label[[3]][10], label = "10", family = "helvetica") +
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=24)) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) 
+
+ggsave("../../results/figures/major_variant_postition_in_genome_per_person.svg", width = 20, height = 20, dpi = 300, units = "in")
+
+```
+```{r Minor Variants Distribution per person, message=F, warning=F, fig.width=15, fig.height=15 fig.align="center"}
+
+label = annotation.df %>% 
+  mutate(POS = (start+end)/2) %>% 
+  mutate(AF = -(.075/2)) %>% 
+  select(gene, POS, AF) 
+
+final.variant.df %>% 
+  mutate(ACCESSION = paste0("Crew Member ", ACCESSION)) %>% 
+  mutate(EFFECT = if_else(is.na(EFFECT), "synonymous", EFFECT)) %>% 
+  ggplot(aes(x = POS, y = AF, col = EFFECT, fill = EFFECT))+
+    geom_point(stat="identity", size = 3, stroke = 2, alpha = 0.5) + 
+    geom_bar(stat="identity", position = position_identity(), width=.01, alpha = 0.5) +
+    geom_text_repel(aes(label = SNP), nudge_y = 0.05, box.padding = 1, size = 5) +
+    facet_wrap(~ACCESSION, ncol = 3) +
+    xlab("Position") +
+    ylab("Allele Frequency") +
+    scale_x_continuous(breaks=c(0,5000,10000,15000,20000,25000,30000))  +
+    scale_y_continuous(breaks=c(0,.1,.2,.3,.4,.5), limits = c(-0.075, .5))  +
+    scale_color_manual(name = "Effect", values=effect_colors) +
+    scale_fill_manual(name = "Effect", values=effect_colors) +
+    annotate("rect", xmin = 0, xmax = ORF1ab[[2]]-1, ymin = -.075, ymax = -.01 ,
+             alpha = .2, fill = "grey", col = "black", size = .1) + 
+    annotate("rect", xmin = ORF1ab[[2]], xmax = ORF1ab[[3]], ymin =  -.075, ymax = -.01 ,
+               alpha = .2, fill = "dodgerblue2", col = "black", size = .1) +
+    annotate(geom = "text", x = label[[2]][1], y = label[[3]][1], label = label[[1]][1], size = 7) +
+    annotate("rect", xmin = Spike[[2]], xmax = Spike[[3]], ymin = -.075, ymax = -.01 ,
+             alpha = .2, fill = "yellow3", col = "black", size = .1) +
+    annotate(geom = "text", x = label[[2]][2], y = label[[3]][2], label = label[[1]][2], size = 7) +
+    annotate("rect", xmin = ORF3a[[2]], xmax = ORF3a[[3]], ymin = -.075, ymax = -.01 ,
+             alpha = .2, fill = "#FF7F00", col = "black", size = .1) +
+    # annotate(geom = "text", x = label[[2]][3], y = label[[3]][3], label = "3a", size = 7) +
+    annotate("rect", xmin = Envelope[[2]], xmax = Envelope[[3]], ymin = -.075, ymax = -.01 ,
+             alpha = .2, fill =  "#6A3D9A", col = "black", size = .1) +
+    # annotate(geom = "text", x = label[[2]][4], y = label[[3]][4], label = "E", size = 7) +
+    annotate("rect", xmin = Membrane[[2]], xmax = Membrane[[3]], ymin = -.075, ymax = -.01 ,
+             alpha = .2, fill =  "green4", col = "black", size = .1) +
+    # annotate(geom = "text", x = label[[2]][5], y = label[[3]][5], label = "M", size = 7) +
+    annotate("rect", xmin = ORF6[[2]], xmax = ORF6[[3]], ymin = -.075, ymax = -.01 ,
+             alpha = .2, fill = "#E31A1C", col = "black", size = .1) +
+    # annotate(geom = "text", x = label[[2]][6], y = label[[3]][6], label = "6", size = 7) +
+    annotate("rect", xmin = ORF7a[[2]], xmax = ORF7a[[3]], ymin = -.075, ymax = -.01 ,
+             alpha = .2, fill = "#FB9A99", col = "black", size = .1) +
+    #annotate(geom = "text", x = label[[2]][7], y = label[[3]][7], label = "7a", family = "helvetica", size = 7) +
+    annotate("rect", xmin = ORF8[[2]], xmax = ORF8[[3]], ymin = -.075, ymax = -.01 ,
+             alpha = .2, fill = "orchid1", col = "black", size = .1) +
+    # annotate(geom = "text", x = label[[2]][8], y = label[[3]][8], label = "8", size = 7) +
+    annotate("rect", xmin = Nucleocapsid[[2]], xmax = Nucleocapsid[[3]], ymin = -.075, ymax = -.01 ,
+             alpha = .2, fill = "maroon", col = "black", size = .1) +
+    # annotate(geom = "text", x = label[[2]][9], y = label[[3]][9], label = "N", size = 7) +
+    annotate("rect", xmin = ORF10[[2]], xmax = ORF10[[3]], ymin = -.075, ymax = -.01 ,
+             alpha = .2, fill =  "skyblue2", col = "black", size = .1) +
+    annotate("rect", xmin = ORF10[[3]]+1, xmax = 29903, ymin = -.075, ymax = -.01 ,
+             alpha = .2, fill = "grey", col = "black", size = .1) +
+    annotate(geom = "text", x = -400, y = label[[3]][1], label = "5'", size = 7) +
+    annotate(geom = "text", x = 30400, y = label[[3]][1], label = "3'", size = 7) +
+    #annotate(geom = "text", x = label[[2]][10], y = label[[3]][10], label = "10", family = "helvetica") +
+    theme_classic() +
+    theme(legend.position="bottom", legend.box = "horizontal") +
+    theme(legend.box.background = element_rect(colour = "black")) +
+    theme(text=element_text(size=24)) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) 
+
+ggsave("../../results/figures/minor_variant_postition_in_genome_per_person.svg", width = 20, height = 20, dpi = 300, units = "in")
+
+```
