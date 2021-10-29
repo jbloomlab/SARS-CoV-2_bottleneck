@@ -40,6 +40,8 @@ boat.path = "../../config/gisaid/boat.csv"
 # Phylogenetic Tree from IQtree
 tree.path = "../../results/phylogeny/global_phylogeny.aligned.fa.treefile"
 
+# Test making figure 1C in ggtree
+condensed.tree.path = "../../results/phylogeny/condensed-boat-sequences.aligned.fa.treefile"
 ```
 
 ```{r Import Data, warning=F, message=F}
@@ -174,4 +176,57 @@ ggsave("../../results/figures/representative-global-phylogeny.svg", width = 7, h
 
 
 ```
+
+## Recreate Figure 1C with ggtree
+
+```{r Collapse, fig.align="center", fig.width=22, fig.height=12}
+# Phylogenetic Tree from IQtree
+collapsed.tree = read.iqtree(condensed.tree.path)
+
+# Root the tree at 10136
+collapsed.root = "10136"
+collapsed.tree@phylo = root(collapsed.tree@phylo, outgroup = collapsed.root)
+
+# These genomes are collpased from the original - add the number represented by each type. 
+ten.genomes = "10117"
+three.genomes = "10129"
+  
+# Tree annoted with sequence count
+collapsed.tree.plotting = collapsed.tree %>% 
+  as.tibble() %>% 
+  mutate(seq.count = case_when(
+    label == ten.genomes ~ 10, 
+    label == three.genomes ~ 3,
+    TRUE ~ 1
+  )) %>% 
+  mutate(is.tip = if_else(label %in% collapsed.tree@phylo$tip.label, T, F)) %>% 
+  as.treedata()
+
+# Import the sequence annotations
+seq.annotations = read_csv("../../results/phylogeny/sequence_annotation_matrix.csv") %>% 
+  as.data.frame() 
+row.names(seq.annotations) = seq.annotations[,1]
+seq.annotations[,1] = NULL 
+
+# Plot the tree 
+plt = collapsed.tree.plotting %>% 
+  ggtree(size = 1.5, col = "black", ladderize=TRUE) + 
+    geom_tree(col = "darkgrey", size = 1) + 
+    geom_tippoint(aes(size = seq.count)) + 
+    geom_treescale(x = 0, y = -0.5,  fontsize=6, linesize=1.3) + 
+    geom_rootedge() +
+    geom_tiplab(aes(subset = seq.count == 1 & is.tip), hjust = -0.2, size = 6) +
+    geom_point2(aes(subset = label == "10136"), col='darkred') + 
+    scale_size_continuous(name ="Genome Count", breaks = c(1, 3, 10)) +
+    labs(col="") 
+
+gheatmap(plt, seq.annotations,
+        colnames_angle=-90, width=.3, offset =.00003, font.size = 5) +
+  scale_fill_manual(values = c("#32a852", "#a83232", "#dde645", "#4d3dff"), name = "Base")
+
+
+
+```  
+
+
 
