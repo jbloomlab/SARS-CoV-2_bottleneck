@@ -48,6 +48,9 @@ annotation.data = "../../config/data/sars_cov_2_annot.csv"
 # Sample data
 sample_metadata = "../../config/data/Boat_Sample_Metadata.csv"
 
+# Ancestral SNPs 
+boat.consensus = "../../results/phylogeny/boat_consensus.csv"
+
 ```
 
 I'll format the variants that I called using the pileup function of the Python library `Pysam`. I'll also join the replicates.
@@ -461,12 +464,19 @@ ggsave("../../results/figures/variant_postition_in_genome.svg", width = 18, heig
 
 ```{r Fixed Variants Distribution per person, message=F, warning=F, fig.width=15, fig.height=15 fig.align="center"}
 
+# TODO: Put in a more obvious place 
+# Filter out the boat consensus sequence
+boat.consensus.snps = read_csv(boat.consensus) %>% 
+  mutate(SNP = paste0(REF, POS, ALT)) %>% 
+  pull(SNP)
+
 label = annotation.df %>% 
   mutate(POS = (start+end)/2) %>% 
   mutate(AF = -(.075/2)) %>% 
   select(gene, POS, AF) 
 
 selected.variant.df %>% 
+  filter(!SNP %in% boat.consensus.snps) %>% 
   filter(AF >= 0.9) %>% 
   mutate(ACCESSION = paste0("Crew Member ", ACCESSION)) %>% 
   mutate(EFFECT = if_else(is.na(EFFECT), "synonymous", EFFECT)) %>% 

@@ -45,6 +45,8 @@ average.depth.data = "../../results/coverage/merged.average.depth"
 # Sample data
 sample_metadata = "../../config/data/Boat_Sample_Metadata.csv"
 
+# Ancestral SNPs 
+boat.consensus = "../../results/phylogeny/boat_consensus.csv"
 ```
 
 I'll format the variants that I called using the pileup function of the Python library `Pysam`. I'll also join the replicates.
@@ -145,8 +147,6 @@ Next, I wanted to select the main variants to include in the downstream analyses
 3. Variants must be present at more than 2% frequency in both of the replicates. 
 4. Variants must be covered by more than 100 reads in both of the replicates. 
 
-Finally, the variants are combined between the replicates by averaging the allele frequency. Then, alleles present at more than 50% frequency and less than 98% frequency are flipped to their non-consensus counterparts. 
-
 ```{r Prepare Final Pysam Variants, warning=F, message=F}
 
 # Only combine those SNPs that are in both samples
@@ -177,27 +177,30 @@ selected.variant.df = inner_join(
   select(!ends_with(".one")) %>% 
   select(!ends_with(".two")) 
 
-# Filp the consensus variants
-fipped.consensus.df = selected.variant.df %>% 
-  filter(AF >= 0.5) %>% 
-  dplyr::rename(ALT = "REF", REF = "ALT") %>% 
-  mutate(AF = (1 - AF)) %>% 
-  filter(AF >= 0.02) %>% 
-  separate(AA_CHANGE, into = c("WT", "AAPOS"),
-           sep = "((?<=[A-Za-z])(?=[0-9]))") %>% 
-  separate(AAPOS, into = c("AAPOS", "MUT"),
-           sep = "((?<=[0-9])(?=[A-Za-z]))") %>% 
-  mutate(AA_CHANGE = paste0(MUT, AAPOS, WT)) %>% 
-  select(!c("MUT", "WT", "AAPOS"))
-
-# final.variant.df = rbind(filter(selected.variant.df, AF < 0.5), fipped.consensus.df) %>% 
-#   mutate(SNV = paste0(REF, POS, ALT))
-
 final.variant.df = selected.variant.df %>% 
   mutate(SNV = paste0(REF, POS, ALT))
 
 
 ```
+
+It's important to call mutations on the boat relative to the consensus on the boat. This is defined as the inferred ancestral state of the MRCA of the boat clade. This doesn't include two boat genomes - `10115` and `10136`, because these samples are fairly diverged from the rest of the clade. These could be separate introductions onto the boat. 
+
+```{r}
+
+boat.consensus.df = read_csv(boat.consensus) %>% 
+  select(!c("X1", "SNP"))
+
+# If you filter for the boat consensus mutations, they are fixed in every sample. These can just be outright excluded. 
+selected.variant.df %>% 
+  filter(POS %in% boat.consensus.df$POS) %>% 
+  mutate(AF = 1 - AF) %>% 
+  filter(AF >= 0.02)
+
+boat.consensus.snps = boat.consensus.df %>% 
+  mutate(SNP = paste0(REF, POS, ALT)) %>% 
+  pull(SNP)
+```
+
 
 
 ```{r Prepare Final Caller Variants, warning=F, message=F}
@@ -234,84 +237,22 @@ caller.selected.variant.df = inner_join(
     select(!ends_with(".one")) %>% 
     select(!ends_with(".two")) 
 
-# Filp the consensus variants
-caller.fipped.consensus.df = caller.selected.variant.df %>% 
-  filter(AF >= 0.5) %>% 
-  dplyr::rename(ALT = "REF", REF = "ALT") %>% 
-  mutate(AF = (1 - AF)) %>% 
-  filter(AF >= 0.02) %>% 
-  separate(AA_CHANGE, into = c("WT", "AAPOS"),
-           sep = "((?<=[A-Za-z])(?=[0-9]))") %>% 
-  separate(AAPOS, into = c("AAPOS", "MUT"),
-           sep = "((?<=[0-9])(?=[A-Za-z]))") %>% 
-  mutate(AA_CHANGE = paste0(MUT, AAPOS, WT)) %>% 
-  select(!c("MUT", "WT", "AAPOS"))
-
-caller.final.variant.df = rbind(filter(caller.selected.variant.df, AF < 0.5), caller.fipped.consensus.df) %>% 
-  mutate(Type = case_when(nchar(REF) > 1 ~ "Del",
-                          nchar(ALT) > 1 ~ "Ins",
-                          nchar(REF) == 1 ~ "SNP")) %>% 
-  filter(Type == "SNP") %>% 
-  mutate(SNV = paste0(REF, POS, ALT))
-
 ```
 
 #### Shared Intrahost Variants 
 
 
-**TODO**: Fix these plots to show mutations relative to the boat consensus - however we end up defining that. 
+**TODO**: Sort by position and remove sequences on the ends.
 
 I wanted to see how the frequency of different variants changed throughout the boat between individuals. First, I did this with only the `pysam` variants. Most mutations are private to individuals. Some low frequency mutations are shared. 
 
-```{r Per Pos Frequency - minor only, echo=F, message=F, warning=F, fig.width= 15, fig.height= 15, fig.align="center"}
- 
-fixed.in.the.boat = selected.variant.df %>% 
-  filter(DP >= 100) %>% 
-  group_by(SNP) %>% 
-  count() %>% 
-  filter(n == length(unique(selected.variant.df$ACCESSION))) %>% 
-  pull(SNP)
-
-final.variant.df %>% 
-  mutate(ACCESSION = paste0("Crewmember-", ACCESSION)) %>% 
-  filter(!(SNP %in% fixed.in.the.boat)) %>% 
-  select(ACCESSION, SNP, AF) %>% 
-  pivot_wider(names_from = SNP, values_from = AF, values_fill = 0) %>% 
-  pivot_longer(!ACCESSION, names_to = "SNP", values_to = "AF") %>%
-  mutate(POS = as.numeric(parse_number(SNP))) %>%
-  mutate(SNP = as.factor(SNP)) %>% 
-  ggplot(aes(x = ACCESSION, y = AF)) +
-    annotate("rect", xmin = -Inf, xmax =  Inf, ymin = 0, ymax = 1, fill = "#737373") +
-    geom_area(aes(group = 1), fill = "#fc9403") +
-    geom_line(aes(group = 1), col = "black", size = 0.2) +
-    facet_wrap(~fct_reorder(SNP, POS, min), ncol = 5) +
-    geom_point(size = 3) +
-    ggtitle("Pysam") + 
-    xlab("Crew Member") +
-    ylab("Allele Frequency") + 
-    scale_color_manual(values = c("#bd0000", "#0013bd", "#bd00ba"), name = "Type") +
-    scale_y_continuous(breaks = c(0, 0.5, 1), limits = c(0,1) , expand = c(0,0)) +  
-    scale_x_discrete(expand = c(0,0), guide = guide_axis(angle = 90)) +    
-    theme_classic() +
-    theme(legend.position="bottom", legend.box = "horizontal") +
-    theme(legend.box.background = element_rect(colour = "black")) +
-    theme(text=element_text(size=24,  family="Helvetica")) +
-    theme(plot.title = element_text(hjust = 0.5)) +
-    theme(panel.background = element_rect(fill = NA, color = "black")) +
-    theme(axis.text.x = element_text(size = 16)) + 
-    theme(panel.spacing = unit(2, "lines")) + 
-    theme(axis.ticks.length=unit(.25, "cm")) +
-  theme(plot.title = element_text(hjust = 0.5))
-
-
-ggsave("../../results/figures/pysam_shared_variants_frequency.png", width = 15, height = 15, dpi = 300, units = "in")
-
-```
-
 ```{r Ordered Pysam, echo=F, message=F, warning=F, fig.width= 15, fig.height= 15, fig.align="center"}
 
+
 SNPs = final.variant.df %>% 
-  filter(!(SNP %in% fixed.in.the.boat)) %>% 
+  filter(!(SNP %in% boat.consensus.snps)) %>% 
+  filter(POS >= 256 & POS <= 29674) %>% # Excluding SNPs from the 5' and 3' UTRs
+  arrange(POS) %>% 
   pull(SNP) %>% 
   unique()
 
