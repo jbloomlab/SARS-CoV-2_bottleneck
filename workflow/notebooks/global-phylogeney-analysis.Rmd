@@ -5,6 +5,8 @@ date: "10/25/2021"
 output: html_document
 ---
 
+# TODO - it's not properly labeling the boat clades. 
+
 The goal of this notebook is to make a figure quality phylogenetic tree for Figure 2 of the paper. I've taken the phylogeny from `IQtree` made in the notebook `Phylogenetic-Analysis.ipynb` and made a pretty figure with `ggtree`.  
 
 ```{r Setup, include=FALSE}
@@ -35,7 +37,8 @@ invisible(lapply(c(packages), library, character.only = TRUE))
 # Paths to GISAID data
 epi.path = "../../config/gisaid/2021-08-03-GISAID-Epi-Metadata.tsv"
 meta.path = "../../config/gisaid/2021-08-02-GISAID-metadata.tsv"
-boat.path = "../../config/gisaid/boat.csv"
+boat.path = "../../config/gisaid/boat.csv" 
+
 
 # Phylogenetic Tree from IQtree
 tree.path = "../../results/phylogeny/global_phylogeny.aligned.fa.treefile"
@@ -54,6 +57,7 @@ gisaid_boat_samples = read_csv(boat.path) %>%
 
 # Phylogenetic Tree from IQtree
 tree = read.iqtree(tree.path)
+
 
 ```
 
@@ -92,7 +96,6 @@ external.metadata.df = gisaid_epi_df %>%
   filter(gisaid_epi_isl %in% tip.mappings.df$gisaid_epi_isl) %>% 
   dplyr::full_join(tip.mappings.df, ., by="gisaid_epi_isl") 
   
-  
 # Annotate a new column with the Clade and Boat status - i.e. what's going to be grouped on the tree
 external.metadata.df = external.metadata.df %>% 
   mutate(nextstrain_clade = if_else(gisaid_epi_isl %in% gisaid_boat_samples, "Boat", Nextstrain_clade)) %>% 
@@ -122,14 +125,16 @@ outlier.node =tree_tibble %>%
   filter(strain == "hCoV-19/USA/WA-UW-10136/2020") %>% 
   pull(node)
 
-# Samples that break the monophyletic nature of the boat
-break.monophyletic = 'hCoV-19/USA/WA-UW-10510/2020'
+# Samples that break the monophyletic nature of the boat - also 10521? 
+break.monophyletic = c('hCoV-19/USA/WA-UW-10510/2020', 'hCoV-19/USA/WA-UW-10521/2020')
 break.monophyletic.node = tree_tibble %>% 
-  filter(strain ==break.monophyletic) %>% 
+  filter(strain %in% break.monophyletic) %>% 
   pull(node)
 
 print(paste("Breaks the monophyletic nature of the boat clade:", break.monophyletic))
 ```
+
+
 
 Finally, I plotted the 'representative' global phylogeney with `ggtree`. 
 ```{r Plotting, fig.align="center", fig.width=7, fig.height=14}
@@ -144,7 +149,8 @@ clade.colors = c("Boat" = "darkred",
                  "20C" = "#55ACA6",
                  "20D" = "#95C464",
                  "20E" = "#E2B548",
-                 "20F" = "#B44126")
+                 "20F" = "#B44126", 
+                 "20G" = "#DEA300")
 
 clades = c("Boat",
            "19A",
@@ -154,16 +160,18 @@ clades = c("Boat",
            "20C",
            "20D",
            "20E",
-           "20F")
+           "20F",
+           "20G")
 
 # Plot the tree
 as.treedata(tree_tibble) %>% 
   ggtree(size = 1.1, col = "darkgrey") + 
     geom_cladelabel(node=MRCA(tree_tibble, boat.nodes)$node, label="Boat Clade", col='darkred', offset = .000015, offset.text = .000015,  barsize = 1, fontsize = 5) +
-    geom_cladelabel(node=outlier.node, label="WA-UW-10136", col='darkred',  offset = .00001) +
-    geom_cladelabel(node=break.monophyletic.node, label="*",fontsize = 5, col='#55ACA6',  offset = .000001) +
-    geom_tippoint(aes(color=nextstrain_clade), size=1.3) + 
-    geom_point2(aes(subset = strain == break.monophyletic), size=1.3, col='#55ACA6') + 
+    geom_cladelabel(node=outlier.node, label="WA-UW-10136", col='darkred',  offset = .00003) +
+    geom_cladelabel(node = break.monophyletic.node[1], label="*",fontsize = 5, col='#55ACA6',  offset = .000001) +
+    geom_cladelabel(node = break.monophyletic.node[2], label="*",fontsize = 5, col='#55ACA6',  offset = .000001) +
+    geom_tippoint(aes(color=nextstrain_clade), size=1.3) +
+    geom_point2(aes(subset = strain %in% break.monophyletic), size=1.3, col='#55ACA6') + 
     geom_treescale(x = 0, y = -10,  fontsize=6, linesize=1.3, offset=1) +
     scale_color_manual(breaks = clades, values = clade.colors) +
     labs(col="") +
@@ -173,6 +181,28 @@ as.treedata(tree_tibble) %>%
 
 ggsave("../../results/figures/representative-global-phylogeny.png", width = 7, height = 14, dpi = 300)
 ggsave("../../results/figures/representative-global-phylogeny.svg", width = 7, height = 14)
+
+```
+
+```{r fig.align="center", fig.width=4, fig.height=6}
+
+as.treedata(tree_tibble) %>% 
+  tree_subset(
+    .,
+    341
+  )  %>% 
+  ggtree(size = 1.1, col = "darkgrey") + 
+    geom_tippoint(aes(color=nextstrain_clade), size=1.3) + 
+    geom_treescale(x = 0, y = -10,  fontsize=6, linesize=1.3, offset=1) +
+    # geom_tiplab(aes(subset = nextstrain_clade != "Boat"), color='firebrick') +
+    scale_color_manual(breaks = clades, values = clade.colors) +
+    labs(col="") +
+    theme(legend.position = c(0.8, 0.2),
+          legend.text=element_text(size=15)) 
+
+  
+ggsave("../../results/figures/boat-subtree.png", width = 4, height = 6, dpi = 300)
+ggsave("../../results/figures/boat-subtree.svg", width = 4, height = 6)
 
 
 ```
@@ -210,14 +240,15 @@ seq.annotations[,1] = NULL
 
 # Plot the tree 
 plt = collapsed.tree.plotting %>% 
-  ggtree(size = 1.5, col = "black", ladderize=TRUE) + 
+  ggtree(size = 1.5, col = "black", ladderize=T, right=T) %>%
+  rotate(rootnode(collapsed.tree.plotting)) +
     geom_tree(col = "darkgrey", size = 1) + 
     geom_tippoint(aes(size = seq.count)) + 
     geom_treescale(x = 0, y = -0.5,  fontsize=6, linesize=1.3) + 
     geom_rootedge() +
     geom_tiplab(aes(subset = seq.count == 1 & is.tip), hjust = -0.2, size = 6) +
-    geom_point2(aes(subset = label == "10136"), col='darkred') + 
-    scale_size_continuous(name ="Genome Count", breaks = c(1, 3, 10)) +
+    geom_point2(aes(subset = label == "10136"), col='darkred', size = 3) + 
+    scale_size_continuous(name ="Genome Count", breaks = c(1, 3, 10), range = c(3,10)) +
     labs(col="") 
 
 gheatmap(plt, seq.annotations,
@@ -225,6 +256,8 @@ gheatmap(plt, seq.annotations,
   scale_fill_manual(values = c("#32a852", "#a83232", "#dde645", "#4d3dff"), name = "Base")
 
 
+ggsave("../../results/figures/representative-global-phylogeny.png", width = 22, height = 12, dpi = 300)
+ggsave("../../results/figures/representative-global-phylogeny.svg", width = 22, height = 12)
 
 ```  
 
