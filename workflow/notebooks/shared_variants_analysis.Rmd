@@ -242,8 +242,6 @@ caller.selected.variant.df = inner_join(
 #### Shared Intrahost Variants 
 
 
-**TODO**: Sort by position and remove sequences on the ends.
-
 I wanted to see how the frequency of different variants changed throughout the boat between individuals. First, I did this with only the `pysam` variants. Most mutations are private to individuals. Some low frequency mutations are shared. 
 
 ```{r Ordered Pysam, echo=F, message=F, warning=F, fig.width= 15, fig.height= 15, fig.align="center"}
@@ -298,7 +296,7 @@ for (i in 1:length(SNPs)) {
 final_plot = gridExtra::grid.arrange(arrangeGrob(grobs = pysam_plot_list, 
                           left = textGrob("Allele Frequency", rot = 90, vjust = 1,
                                           gp = gpar(col = "black", fontsize = 24)),
-                          bottom = textGrob("Crew Memeber", hjust = .5,
+                          bottom = textGrob("Crew Member", hjust = .5,
                                             gp = gpar(col = "black", fontsize = 24))))
 
 ggsave(plot = final_plot, "../../results/figures/pysam_shared_variants_frequency.png", width = 15, height = 15, dpi = 300, units = "in")

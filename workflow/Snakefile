@@ -35,11 +35,11 @@ rule all:
         join(config['coverage_dir'], "merged.average.depth"),
         join(config['coverage_dir'], "merged.depth"),
         join(config['consensus_dir'], "aligned_consensus.fa"),
-        join(config['consensus_dir'], "aligned_consensus.fa.iqtree"),
-        join(config['phylogeny_dir'], "custom-boat-sequences.png"),
-        join(config['phylogeny_dir'], "all-boat-sequences.png"),
-        join(config['phylogeny_dir'], "representative-global-phylogeny.png"),
-        join(config['phylogeny_dir'], "washington-only-phylogeny.png")
+        join(config['consensus_dir'], "aligned_consensus.fa.iqtree")
+#        join(config['phylogeny_dir'], "custom-boat-sequences.png"),
+#        join(config['phylogeny_dir'], "all-boat-sequences.png"),
+#        join(config['phylogeny_dir'], "representative-global-phylogeny.png"),
+#        join(config['phylogeny_dir'], "washington-only-phylogeny.png")
 
 
 rule clean:
