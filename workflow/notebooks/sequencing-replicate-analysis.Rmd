@@ -161,7 +161,7 @@ The point of having replicates from the same samples with different reverse tran
 
 To assess this, I looked at the concordance between the allele frequencies from the merged samples. Below is a plot of the concordance of allele frequency between the sequencing replicates of all libraries with *Pysam/Python* variant calling. 
 
-```{r Concordance, message = F, warning = F, fig.width= 25, fig.height= 20, fig.align='center'}
+```{r Concordance, message = F, warning = F, fig.width= 20, fig.height= 25, fig.align='center'}
 
 concordance_plot_list = list()
 
@@ -180,7 +180,7 @@ for (i in 1:length(samples)) {
   p1 = included.variants.df  %>% 
     filter(ACCESSION == samples[i]) %>% 
     ggplot(aes(x = AF.one, y = AF.two)) + 
-      geom_point(data = filter(excluded.variants.df, ACCESSION == samples[i]), aes(x = AF.one, y = AF.two), size = 1, col = "#b80000", alpha = 0.5) +
+      geom_point(data = filter(excluded.variants.df, ACCESSION == samples[i]), aes(x = AF.one, y = AF.two), size = 3, col = "#b80000", alpha = 0.5) +
       geom_point(size = 4, alpha = .75) +
       geom_abline(intercept=0, col = "blue") + 
       geom_hline(yintercept = 0.02, col = "blue", linetype = 2) + 
@@ -192,11 +192,12 @@ for (i in 1:length(samples)) {
       xlab("") +
       ylab("") +
       theme_classic() +
-      theme(text=element_text(size= 25,  family="Helvetica")) +
+      theme(text=element_text(size= 35,  family="Helvetica")) +
       theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
       theme(panel.background = element_rect(fill = NA, color = "black")) +
-      theme(plot.title = element_text(hjust = 0.5)) + 
-      coord_fixed()
+      theme(plot.title = element_text(hjust = 0.5))  + 
+      theme(plot.margin=margin(c(-.05, -.05, -.05, -.01), "cm")) 
+      # coord_fixed()
   
   p2 = included.variants.df  %>% 
     filter(ACCESSION == samples[i]) %>% 
@@ -212,16 +213,16 @@ for (i in 1:length(samples)) {
       xlab("") +
       ylab("") +
       theme_classic() +
-      theme(text=element_text(size = 14,  family="Helvetica")) +
+      theme(text=element_text(size = 15,  family="Helvetica")) +
       theme(panel.grid.major.y = element_line(colour="grey", linetype="dashed")) +
       theme(panel.background = element_rect(fill = NA, color = "black")) +
       theme(plot.title = element_text(hjust = 0.5)) + 
-      theme(axis.text.x = element_blank()) + 
+      theme(axis.text.x = element_blank()) +
       coord_fixed()
   
   
   p3 = p1 + 
-    annotation_custom(ggplotGrob(p2), xmin = .25, xmax = 1.15, ymin = -.05, ymax = .4) 
+    annotation_custom(ggplotGrob(p2), xmin = .35, xmax = 1.15, ymin = -.05, ymax = .4) 
 
   concordance_plot_list[[i]] = p3
   
@@ -233,7 +234,7 @@ final_plot = gridExtra::grid.arrange(arrangeGrob(grobs = concordance_plot_list,
                           bottom = textGrob("Allele Frequency Replicate One", hjust = .5,
                                             gp = gpar(col = "black", fontsize = 35))))
 
-ggsave("../../results/figures/replicate_comparison_pysam.png", plot = final_plot, width = 28, height = 22, dpi = 300, units = "in")
+ggsave("../../results/figures/replicate_comparison_pysam.png", plot = final_plot, width = 25, height = 30, dpi = 300, units = "in")
 
 ```
 
