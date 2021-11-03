@@ -131,7 +131,7 @@ poor.concordance.samples = pysam.combined.df %>%
   mutate(DIFF = abs(AF.one - AF.two)) %>% 
   group_by(ACCESSION) %>% 
   summarise(MEAN_DIFF = mean(DIFF)) %>% 
-  filter(MEAN_DIFF >= 0.025) %>% 
+  filter(MEAN_DIFF >= 0.020) %>% 
   pull(ACCESSION)
 
 poor.concordance.samples = poor.concordance.samples[which(!poor.concordance.samples %in% low.coverage.samples)]
