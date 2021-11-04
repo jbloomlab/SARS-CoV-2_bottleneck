@@ -347,9 +347,22 @@ I wanted to see how many intrahost variants there are on average across samples.
 
 ```{r Average SNPs, warning=F, message=F, width = 8, height = 5}
 
+# Current approach to getting the average number of mutations at each position misses an accession if there are none. 
+# This little hack fixes that. 
+unique(selected.variant.df$ACCESSION)
+
+no.variants.df = data.frame()
+for (accession in unique(selected.variant.df$ACCESSION)) {
+  if (!accession %in% final.variant.df$ACCESSION ) {
+    no.variants.df = rbind(no.variants.df, data.frame("ACCESSION" = accession, "n" = 0))
+  }
+}
+
+
 average.number.of.minor.variants = final.variant.df %>% 
   group_by(ACCESSION) %>% 
   count() %>% 
+  bind_rows(no.variants.df, .) %>% 
   pull(n) %>% 
   mean(.) %>% 
   round(.)
@@ -357,6 +370,7 @@ average.number.of.minor.variants = final.variant.df %>%
 final.variant.df %>% 
   group_by(ACCESSION) %>% 
   count() %>% 
+  bind_rows(no.variants.df, .) %>% 
   ggplot(aes(x = n, y = reorder(ACCESSION, -n))) + 
     geom_bar(stat = 'identity') + 
     geom_text(aes(x = 4.5, y = "10040"), label = paste("Average ~ ", average.number.of.minor.variants), size = 6) +
