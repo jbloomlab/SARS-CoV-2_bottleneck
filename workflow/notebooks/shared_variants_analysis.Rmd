@@ -267,11 +267,12 @@ for (i in 1:length(SNPs)) {
     mutate(SNP = as.factor(SNP)) %>% 
     filter(SNP == SNPs[i]) %>% 
     ggplot(aes(x = reorder(ACCESSION, AF), y = AF)) +
-      annotate("rect", xmin = -Inf, xmax =  Inf, ymin = 0, ymax = 1, fill = "#737373") +
-      geom_area(aes(group = 1), fill = "#fc9403") +
-      geom_line(aes(group = 1), col = "black", size = 0.2) +
+      annotate("rect", xmin = -Inf, xmax =  Inf, ymin = 0, ymax = 1, fill = "#dbdbdb") +
+      # geom_area(aes(group = 1), fill = "#fc9403") +
+      # geom_line(aes(group = 1), col = "black", size = 0.2) +
+      geom_bar(stat = "identity", width = 1.5, fill = "#fc9403") +
       facet_wrap(~fct_reorder(SNP, POS, min), ncol = 5) +
-      geom_point(size = 3) +
+      geom_point(size = 1.5) +
       xlab("") +
       ylab("") + 
       scale_color_manual(values = c("#bd0000", "#0013bd", "#bd00ba"), name = "Type") +
@@ -302,6 +303,75 @@ final_plot = gridExtra::grid.arrange(arrangeGrob(grobs = pysam_plot_list,
 ggsave(plot = final_plot, "../../results/figures/pysam_shared_variants_frequency.png", width = 15, height = 15, dpi = 300, units = "in")
 
 ```
+
+```{r}
+
+# FIXME: This doesn't work with the lag function, I suspect because it's catagorical and 'lag' doesn't really mean anything without some inherent ordering. 
+
+testdf = final.variant.df %>% 
+    select(ACCESSION, SNP, AF) %>% 
+    pivot_wider(names_from = SNP, values_from = AF, values_fill = 0) %>% 
+    pivot_longer(!ACCESSION, names_to = "SNP", values_to = "AF") %>%
+    mutate(POS = as.numeric(parse_number(SNP))) %>%
+    mutate(SNP = as.factor(SNP)) 
+
+testdf_areaStep = bind_rows(old = testdf, 
+                         new = testdf %>% mutate(AF = lag(AF)),
+                         .id = "source") %>%
+               arrange(ACCESSION, source)
+
+
+
+pysam_plot_list = list()
+
+for (i in 1:length(SNPs)) {
+  
+  plt = testdf %>% 
+    select(ACCESSION, SNP, AF) %>% 
+    pivot_wider(names_from = SNP, values_from = AF, values_fill = 0) %>% 
+    pivot_longer(!ACCESSION, names_to = "SNP", values_to = "AF") %>%
+    mutate(POS = as.numeric(parse_number(SNP))) %>%
+    mutate(SNP = as.factor(SNP)) %>% 
+    filter(SNP == SNPs[i])  %>% 
+    
+    
+    
+    ggplot(aes(x = reorder(ACCESSION, AF), y = AF)) +
+      annotate("rect", xmin = -Inf, xmax =  Inf, ymin = 0, ymax = 1, fill = "#737373") +
+      
+      geom_ribbon(aes(x = ACCESSION, ymin = 0, ymax = AF), data = testdf_areaStep, fill = "black") +
+
+      facet_wrap(~fct_reorder(SNP, POS, min), ncol = 5) +
+      geom_point(size = 3) +
+      xlab("") +
+      ylab("") + 
+      scale_color_manual(values = c("#bd0000", "#0013bd", "#bd00ba"), name = "Type") +
+      scale_y_continuous(breaks = c(0, 0.5, 1), limits = c(0,1) , expand = c(0,0)) +  
+      scale_x_discrete(expand = c(0,0), guide = guide_axis(angle = 90)) +    
+      theme_classic() +
+      theme(legend.position="bottom", legend.box = "horizontal") +
+      theme(legend.box.background = element_rect(colour = "black")) +
+      theme(text=element_text(size=24,  family="Helvetica")) +
+      theme(plot.title = element_text(hjust = 0.5)) +
+      theme(panel.background = element_rect(fill = NA, color = "black")) +
+      theme(axis.text.x = element_text(size = 12)) + 
+      theme(panel.spacing = unit(2, "lines")) + 
+      theme(axis.ticks.length=unit(.25, "cm")) +
+      theme(plot.title = element_text(hjust = 0.5)) + 
+      theme(plot.margin=unit(c(.25, 0.2, -.4, -.25), "cm"))
+
+  pysam_plot_list[[i]] = plt
+  
+}
+
+final_plot = gridExtra::grid.arrange(arrangeGrob(grobs = pysam_plot_list, 
+                          left = textGrob("Allele Frequency", rot = 90, vjust = 1,
+                                          gp = gpar(col = "black", fontsize = 24)),
+                          bottom = textGrob("Crew Member", hjust = .5,
+                                            gp = gpar(col = "black", fontsize = 24))))
+
+```
+
 
 ### Comparison with other variant callers
 
