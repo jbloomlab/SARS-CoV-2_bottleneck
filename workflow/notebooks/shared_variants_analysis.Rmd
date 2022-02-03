@@ -17,7 +17,7 @@ knitr::opts_chunk$set(echo = FALSE)
 ## ==== Install Required Packages ==== ##
 
 ## List of all packages needed -- non-BioManager installed
-packages = c("tidyverse", "scales", "RColorBrewer", "ggrepel", "Biostrings", "gridExtra", 'grid')
+packages = c("tidyverse", "scales", "RColorBrewer", "ggrepel", "gridExtra", 'grid')
 ## Check that packages are installed, if not, install them
 installed_packages <- packages %in% rownames(installed.packages())
 if (any(installed_packages == FALSE)) {
@@ -188,7 +188,7 @@ It's important to call mutations on the boat relative to the consensus on the bo
 ```{r}
 
 boat.consensus.df = read_csv(boat.consensus) %>% 
-  select(!c("X1", "SNP"))
+  select(!c("...1", "SNP"))
 
 # If you filter for the boat consensus mutations, they are fixed in every sample. These can just be outright excluded. 
 selected.variant.df %>% 
@@ -306,45 +306,22 @@ ggsave(plot = final_plot, "../../results/figures/pysam_shared_variants_frequency
 
 ```{r}
 
-# FIXME: This doesn't work with the lag function, I suspect because it's catagorical and 'lag' doesn't really mean anything without some inherent ordering. 
-
-testdf = final.variant.df %>% 
-    select(ACCESSION, SNP, AF) %>% 
-    pivot_wider(names_from = SNP, values_from = AF, values_fill = 0) %>% 
-    pivot_longer(!ACCESSION, names_to = "SNP", values_to = "AF") %>%
-    mutate(POS = as.numeric(parse_number(SNP))) %>%
-    mutate(SNP = as.factor(SNP)) 
-
-testdf_areaStep = bind_rows(old = testdf, 
-                         new = testdf %>% mutate(AF = lag(AF)),
-                         .id = "source") %>%
-               arrange(ACCESSION, source)
-
-
-
-pysam_plot_list = list()
-
-for (i in 1:length(SNPs)) {
-  
-  plt = testdf %>% 
+final.variant.df %>% 
+  filter(SNP %in% c("A4229C", "C9502T", "G14335T", "T18402A")) %>% 
     select(ACCESSION, SNP, AF) %>% 
     pivot_wider(names_from = SNP, values_from = AF, values_fill = 0) %>% 
     pivot_longer(!ACCESSION, names_to = "SNP", values_to = "AF") %>%
     mutate(POS = as.numeric(parse_number(SNP))) %>%
     mutate(SNP = as.factor(SNP)) %>% 
-    filter(SNP == SNPs[i])  %>% 
-    
-    
-    
     ggplot(aes(x = reorder(ACCESSION, AF), y = AF)) +
-      annotate("rect", xmin = -Inf, xmax =  Inf, ymin = 0, ymax = 1, fill = "#737373") +
-      
-      geom_ribbon(aes(x = ACCESSION, ymin = 0, ymax = AF), data = testdf_areaStep, fill = "black") +
-
-      facet_wrap(~fct_reorder(SNP, POS, min), ncol = 5) +
-      geom_point(size = 3) +
-      xlab("") +
-      ylab("") + 
+      annotate("rect", xmin = -Inf, xmax =  Inf, ymin = 0, ymax = 1, fill = "#dbdbdb") +
+      # geom_area(aes(group = 1), fill = "#fc9403") +
+      # geom_line(aes(group = 1), col = "black", size = 0.2) +
+      geom_bar(stat = "identity", width = 1.5, fill = "#fc9403") +
+      facet_wrap(~fct_reorder(SNP, POS, min), ncol = 2) +
+      geom_point(size = 1.5) +
+      xlab("Crew Member") +
+      ylab("Allele Frequency") + 
       scale_color_manual(values = c("#bd0000", "#0013bd", "#bd00ba"), name = "Type") +
       scale_y_continuous(breaks = c(0, 0.5, 1), limits = c(0,1) , expand = c(0,0)) +  
       scale_x_discrete(expand = c(0,0), guide = guide_axis(angle = 90)) +    
@@ -357,18 +334,29 @@ for (i in 1:length(SNPs)) {
       theme(axis.text.x = element_text(size = 12)) + 
       theme(panel.spacing = unit(2, "lines")) + 
       theme(axis.ticks.length=unit(.25, "cm")) +
-      theme(plot.title = element_text(hjust = 0.5)) + 
-      theme(plot.margin=unit(c(.25, 0.2, -.4, -.25), "cm"))
+      theme(plot.title = element_text(hjust = 0.5)) 
 
-  pysam_plot_list[[i]] = plt
-  
-}
 
-final_plot = gridExtra::grid.arrange(arrangeGrob(grobs = pysam_plot_list, 
-                          left = textGrob("Allele Frequency", rot = 90, vjust = 1,
-                                          gp = gpar(col = "black", fontsize = 24)),
-                          bottom = textGrob("Crew Member", hjust = .5,
-                                            gp = gpar(col = "black", fontsize = 24))))
+ggsave( "../../results/figures/low_freq_only.png", width = 6, height = 5, dpi = 300, units = "in")
+
+
+```
+
+```{r All four shared SNPs are in 10136}
+
+# All four shared SNPs are in the non-boat specimen 10136
+pysam.df %>% 
+  mutate(SNP = paste0(REF, POS, ALT)) %>% 
+  filter(SNP %in% c("A4229C", "C9502T", "G14335T", "T18402A")) %>% 
+  # Non-boat control sample
+  filter(ACCESSION == "10136") %>% 
+  ggplot(aes(x = REPLICATE, y = AF)) + 
+    geom_bar(stat = "identity") + 
+    facet_wrap(~SNP) + 
+    theme_bw()
+
+ggsave( "../../results/figures/non-boat-shared-variants.png", width = 6, height = 5, dpi = 300, units = "in")
+
 
 ```
 
@@ -513,11 +501,14 @@ Otherwise, there are four shared minor variants that I called with `pysam`: `r (
 #### Low Frequnecy Shared Variants
 
 ```{r Odd Variants}
-
 # Read in the reference as a indexable string
 reference = readDNAStringSet("../../config/ref/SARS2.fa")
 
 # Get the shared positions
+```
+
+
+```{r Odd Variants}
 shared.positions = unique(shared.variants$POS)
 shared.snps = shared.variants %>% 
   mutate(SNP = paste0(REF, POS, ALT)) %>% 
@@ -583,6 +574,11 @@ for (i in 1:length(shared.positions)){
 
 Oddly, in all four cases, the base chages to the same base as its immediate neighbor. 
 
+```{r}
+
+
+```
+
 #### Replicate Frequency differences. 
 
 This is part of the final supplementary figure showing that the freqency betweem replicates is off for these alleles. 
@@ -609,6 +605,30 @@ pysam.combined.df %>%
 ggsave("../../results/figures/discrepency_in_frequency_between_replicates.png", width = 9, height = 7, dpi = 300, units = "in")
 
 ```
+
+```{r Non boat shared variants, warning=F, message=F, fig.width= 9, fig.height= 7, fig.align="center"}
+
+# All four shared SNPs are in the non-boat specimen 10136
+pysam.df %>% 
+  mutate(SNP = paste0(REF, POS, ALT)) %>% 
+  filter(SNP %in% c("A4229C", "C9502T", "G14335T", "T18402A")) %>% 
+  # Non-boat control sample
+  filter(ACCESSION == "10136") %>% 
+  ggplot(aes(x = REPLICATE, y = AF)) + 
+    geom_bar(stat = "identity") + 
+    facet_wrap(~SNP) + 
+    ggtitle("Low-frequency Shared Variants in Non-Boat Control (Specimen-10136)") + 
+    ylab("Allele Frequency") + 
+    xlab("Sequencing Replicate") + 
+    theme_bw(24) + 
+    theme(plot.title = element_text(hjust = 0.5, size = 18))
+
+ggsave( "../../results/figures/non-boat-shared-variants.png", width = 9, height = 7, dpi = 300, units = "in")
+
+
+
+```
+
 
 What is the "null" distributions for allele frequency correlation? 
 

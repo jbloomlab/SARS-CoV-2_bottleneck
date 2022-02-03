@@ -5,8 +5,6 @@ date: "10/25/2021"
 output: html_document
 ---
 
-# TODO - it's not properly labeling the boat clades. 
-
 The goal of this notebook is to make a figure quality phylogenetic tree for Figure 2 of the paper. I've taken the phylogeny from `IQtree` made in the notebook `Phylogenetic-Analysis.ipynb` and made a pretty figure with `ggtree`.  
 
 ```{r Setup, include=FALSE}
@@ -19,7 +17,8 @@ knitr::opts_chunk$set(echo = FALSE)
 ## ==== Install Required Packages ==== ##
 
 ## List of all packages needed -- non-BioManager installed
-packages = c("tidyverse", "ggtree", "treeio", "tidytree")
+packages = c("tidyverse", "tidytree", "phytools", "knitr", "BiocManager")
+bio.packages = c("ggtree", "treeio")
 ## Check that packages are installed, if not, install them
 installed_packages <- packages %in% rownames(installed.packages())
 if (any(installed_packages == FALSE)) {
@@ -27,6 +26,14 @@ if (any(installed_packages == FALSE)) {
 }
 ## Packages loading
 invisible(lapply(c(packages), library, character.only = TRUE))
+
+bio_installed_packages <- bio.packages %in% rownames(installed.packages())
+if (any(bio_installed_packages == FALSE)) {
+  BiocManager::install(bio.packages[!bio_installed_packages])
+}
+## Packages loading
+invisible(lapply(c(bio.packages), library, character.only = TRUE))
+
 
 ```
 
@@ -38,7 +45,6 @@ invisible(lapply(c(packages), library, character.only = TRUE))
 epi.path = "../../config/gisaid/2021-08-03-GISAID-Epi-Metadata.tsv"
 meta.path = "../../config/gisaid/2021-08-02-GISAID-metadata.tsv"
 boat.path = "../../config/gisaid/boat.csv" 
-
 
 # Phylogenetic Tree from IQtree
 tree.path = "../../results/phylogeny/global_phylogeny.aligned.fa.treefile"
@@ -168,15 +174,15 @@ as.treedata(tree_tibble) %>%
   ggtree(size = 1.1, col = "darkgrey") + 
     geom_cladelabel(node=MRCA(tree_tibble, boat.nodes)$node, label="Boat Clade", col='darkred', offset = .000015, offset.text = .000015,  barsize = 1, fontsize = 5) +
     geom_cladelabel(node=outlier.node, label="WA-UW-10136", col='darkred',  offset = .00003) +
-    geom_cladelabel(node = break.monophyletic.node[1], label="*",fontsize = 5, col='#55ACA6',  offset = .000001) +
-    geom_cladelabel(node = break.monophyletic.node[2], label="*",fontsize = 5, col='#55ACA6',  offset = .000001) +
+    geom_cladelabel(node = break.monophyletic.node[1], label="*",fontsize = 7, col='black',  offset = .000001) +
+    geom_cladelabel(node = break.monophyletic.node[2], label="*",fontsize = 7, col='black',  offset = .000001) +
     geom_tippoint(aes(color=nextstrain_clade), size=1.3) +
     geom_point2(aes(subset = strain %in% break.monophyletic), size=1.3, col='#55ACA6') + 
     geom_treescale(x = 0, y = -10,  fontsize=6, linesize=1.3, offset=1) +
     scale_color_manual(breaks = clades, values = clade.colors) +
     labs(col="") +
     theme(legend.position = c(0.8, 0.2),
-          legend.text=element_text(size=15))
+          legend.text=element_text(size=15)) 
 
 
 ggsave("../../results/figures/representative-global-phylogeny.png", width = 7, height = 14, dpi = 300)
@@ -195,14 +201,16 @@ as.treedata(tree_tibble) %>%
     geom_tippoint(aes(color=nextstrain_clade), size=1.3) + 
     geom_treescale(x = 0, y = -10,  fontsize=6, linesize=1.3, offset=1) +
     # geom_tiplab(aes(subset = nextstrain_clade != "Boat"), color='firebrick') +
-    scale_color_manual(breaks = clades, values = clade.colors) +
+    scale_color_manual(breaks = c("Boat", "20C"), values = c("Boat" = "darkred","20C" = "#55ACA6")) +
     labs(col="") +
-    theme(legend.position = c(0.8, 0.2),
+    theme(legend.position = c(0.8, 0.5),
           legend.text=element_text(size=15)) 
 
   
 ggsave("../../results/figures/boat-subtree.png", width = 4, height = 6, dpi = 300)
 ggsave("../../results/figures/boat-subtree.svg", width = 4, height = 6)
+
+
 
 
 ```
@@ -213,9 +221,10 @@ ggsave("../../results/figures/boat-subtree.svg", width = 4, height = 6)
 # Phylogenetic Tree from IQtree
 collapsed.tree = read.iqtree(condensed.tree.path)
 
-# Root the tree at 10136
-collapsed.root = "10136"
-collapsed.tree@phylo = root(collapsed.tree@phylo, outgroup = collapsed.root)
+# TODO: chang this to midpoint rooting 
+# collapsed.root = "10136"
+# collapsed.tree@phylo = root(collapsed.tree@phylo, outgroup = collapsed.root)
+collapsed.tree@phylo = midpoint.root(collapsed.tree@phylo)
 
 # These genomes are collpased from the original - add the number represented by each type. 
 ten.genomes = "10117"
@@ -240,26 +249,83 @@ seq.annotations[,1] = NULL
 
 # Plot the tree 
 plt = collapsed.tree.plotting %>% 
-  ggtree(size = 1.5, col = "black", ladderize=T, right=T) %>%
+  ggtree(size = 1.25, col = "black", ladderize=T, right=T) %>%
   rotate(rootnode(collapsed.tree.plotting)) +
-    geom_tree(col = "darkgrey", size = 1) + 
+    geom_tree(col = "darkgrey", size = 1) +
     geom_tippoint(aes(size = seq.count)) + 
-    geom_treescale(x = 0, y = -0.5,  fontsize=6, linesize=1.3) + 
+    geom_treescale(x = 0, y = -0.5,  fontsize=8, linesize=1.3) + 
     geom_rootedge() +
-    geom_tiplab(aes(subset = seq.count == 1 & is.tip), hjust = -0.2, size = 6) +
-    geom_point2(aes(subset = label == "10136"), col='darkred', size = 3) + 
-    scale_size_continuous(name ="Genome Count", breaks = c(1, 3, 10), range = c(3,10)) +
-    labs(col="") 
+    geom_tiplab(aes(subset = seq.count == 1 & is.tip), hjust = -0.2, size = 8) +
+    geom_point2(aes(subset = label == "10136"), col='darkred', size = 5) + 
+    scale_size_continuous(name ="Genome Count", breaks = c(1, 3, 10), range = c(5,15)) +
+    labs(col="") + 
+    theme(legend.title=element_text(size=22),
+          legend.text=element_text(size=22),
+          legend.key.size = unit(1.5, "cm")) 
+
 
 gheatmap(plt, seq.annotations,
-        colnames_angle=-90, width=.3, offset =.00003, font.size = 5) +
-  scale_fill_manual(values = c("#32a852", "#a83232", "#dde645", "#4d3dff"), name = "Base")
+        colnames_angle=-90, width=.4, offset =.00003, font.size = 6) +
+  scale_fill_manual(values = c("#32a852", "#a83232", "#dde645", "#4d3dff"), name = "Base") 
 
-
-ggsave("../../results/figures/representative-global-phylogeny.png", width = 22, height = 12, dpi = 300)
-ggsave("../../results/figures/representative-global-phylogeny.svg", width = 22, height = 12)
+ggsave("../../results/figures/detailed-boat-phylogeny.png", width = 22, height = 12, dpi = 300)
+ggsave("../../results/figures/detailed-boat-phylogeny.svg", width = 22, height = 12)
 
 ```  
 
 
+```{r All Boat, fig.align="center", fig.width=22, fig.height=12}
+# Phylogenetic Tree from IQtree
+all.boat.tree = read.iqtree("../../results/phylogeny/collapsed-all-boat-sequences.aligned.fa.treefile")
 
+# TODO: chang this to midpoint rooting 
+# collapsed.root = "10136"
+# collapsed.tree@phylo = root(collapsed.tree@phylo, outgroup = collapsed.root)
+all.boat.tree@phylo = midpoint.root(all.boat.tree@phylo)
+
+# These genomes are collpased from the original - add the number represented by each type. 
+twentysix.genomes = "10101"
+four.genomes = "10107"
+  
+# Tree annotated with sequence count
+all.boat.tree.plotting = all.boat.tree %>% 
+  as.tibble() %>% 
+  mutate(seq.count = case_when(
+    label == twentysix.genomes ~ 26, 
+    label == four.genomes ~ 4,
+    TRUE ~ 1
+  )) %>% 
+  mutate(is.tip = if_else(label %in% all.boat.tree@phylo$tip.label, T, F)) %>% 
+  as.treedata()
+
+# Import the sequence annotations
+seq.annotations = read_csv("../../results/phylogeny/all-boat-substitutions-matrix.csv") %>% 
+  as.data.frame() 
+row.names(seq.annotations) = seq.annotations[,1]
+seq.annotations[,1] = NULL 
+
+# Plot the tree 
+plt = all.boat.tree.plotting %>% 
+  ggtree(size = 1.25, col = "black", ladderize=T, right=T) %>%
+  rotate(rootnode(all.boat.tree.plotting)) +
+    geom_tree(col = "darkgrey", size = 1) +
+    geom_tippoint(aes(size = seq.count)) + 
+    geom_treescale(x = 0, y = -0.5,  fontsize=8, linesize=1.3) + 
+    geom_rootedge() +
+    geom_tiplab(aes(subset = seq.count == 1 & is.tip), hjust = -0.2, size = 8) +
+    # geom_point2(aes(subset = label == "NC_045512.2"), col='darkred', size = 5) + 
+    scale_size_continuous(name ="Genome Count", breaks = c(1, 4, 26), range = c(5,20)) +
+    labs(col="") + 
+    theme(legend.title=element_text(size=22),
+          legend.text=element_text(size=22),
+          legend.key.size = unit(1.5, "cm")) 
+
+
+gheatmap(plt, seq.annotations,
+        colnames_angle=-90, width=.4, offset =.00003, font.size = 6) +
+  scale_fill_manual(values = c("#32a852", "#a83232", "#dde645", "#4d3dff"), name = "Base") 
+
+ggsave("../../results/figures/detailed-all-boat-phylogeny.png", width = 22, height = 12, dpi = 300)
+ggsave("../../results/figures/detailed-all-boat-phylogeny.svg", width = 22, height = 12)
+
+```  
