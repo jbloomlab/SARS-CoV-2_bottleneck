@@ -1,6 +1,7 @@
 """ 
-This `Snakefile` runs the full analysis of the transmission bottleneck 
-of SARS-CoV-2 from a fishing boat cohort.
+This `Snakefile` runs the full analysis for
+"Narrow transmission bottlenecks and limited within-host viral
+diversity during a SARS-CoV-2 outbreak on a fishing boat"
 
 Author: Will Hannon – https://www.linkedin.com/in/williamhannon/
 """
@@ -36,11 +37,6 @@ rule all:
         join(config['coverage_dir'], "merged.depth"),
         join(config['consensus_dir'], "aligned_consensus.fa"),
         join(config['consensus_dir'], "aligned_consensus.fa.iqtree")
-#        join(config['phylogeny_dir'], "custom-boat-sequences.png"),
-#        join(config['phylogeny_dir'], "all-boat-sequences.png"),
-#        join(config['phylogeny_dir'], "representative-global-phylogeny.png"),
-#        join(config['phylogeny_dir'], "washington-only-phylogeny.png")
-
 
 rule clean:
     shell:
