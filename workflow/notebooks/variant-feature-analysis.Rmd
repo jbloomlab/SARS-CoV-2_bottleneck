@@ -5,7 +5,7 @@ date: "1/11/2021"
 output: html_document
 ---
 
-The goal of this notebook is to look at the features of the intrahost variants from each of the boat passangers. The idea is to see where these fall in the genome, how many are there per sample, and what's the distribution of frequencies. 
+The goal of this notebook is to look at the features of the intra-host variants from each of the boat passengers. The idea is to see where these fall in the genome, how many are there per sample, and what's the distribution of frequencies. 
 
 ```{r Setup, include=FALSE}
 require("knitr")
@@ -82,7 +82,7 @@ pysam.combined.df = full_join(
 
 ```
 
-Then, I'll do the sample with the variants called with three variant calling softwares: `lofreq`, `ivar`, and `varscan`. Here, I also standardize the column names with those of the pysam variants. 
+Then, I'll do the sample with the variants called with three variant calling software: `lofreq`, `ivar`, and `varscan`. Here, I also standardize the column names with those of the pysam variants. 
 
 ```{r Format Variant Data, warning=F, message=F}
 
@@ -364,8 +364,8 @@ average.number.of.minor.variants = final.variant.df %>%
   count() %>% 
   bind_rows(no.variants.df, .) %>% 
   pull(n) %>% 
-  mean(.) %>% 
-  round(.)
+  mean(.) 
+
 
 final.variant.df %>% 
   group_by(ACCESSION) %>% 
@@ -373,7 +373,7 @@ final.variant.df %>%
   bind_rows(no.variants.df, .) %>% 
   ggplot(aes(x = n, y = reorder(ACCESSION, -n))) + 
     geom_bar(stat = 'identity') + 
-    geom_text(aes(x = 4.5, y = "10040"), label = paste("Average ~ ", average.number.of.minor.variants), size = 6) +
+    geom_text(aes(x = 4.5, y = "10040"), label = paste("Average ~ ", round(average.number.of.minor.variants)), size = 6) +
     ylab('Crew Member') + 
     xlab('Number of minor variants') +
     theme_bw(18)
@@ -386,7 +386,7 @@ There is a mean of ~ 3 minor variants per sample.
 
 ## Average Variant Frequency 
 
-Next, I wanted to look at the average frequency of these intrahost variants, as well as their distributioon across the creq members. 
+Next, I wanted to look at the average frequency of these intrahost variants, as well as their distribution across the crew members. 
 
 ```{r MAF spectrum, warning=F, message=F, width = 7, height = 5}
 
@@ -400,6 +400,9 @@ final.variant.df %>%
   
 ggsave(filename = "../../results/figures/MAF_specturm.svg", width = 6, height = 4)
 
+```
+```{r}
+print(paste(round(final.variant.df$AF, 5), sep = ", "))
 ```
 
 The vast majority of intrahost variants are present at less than 10% frequency. However, there are some present at quite high frequency, even approaching 50%. These are particularly interesting if they appear elsewhere in the phylogeny of the boat samples or washington state. 

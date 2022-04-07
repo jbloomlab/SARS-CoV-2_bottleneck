@@ -278,4 +278,16 @@ ggsave("../../results/figures/faceted_plot_coverage_dist.svg", device = svg(), w
 
 ```
 
+```{r}
+
+
+depth.of.coverage.df %>% 
+  mutate(!Accession %in% low.coverage.samples) %>% 
+  group_by(Accession) %>% 
+  summarize(mean_depth=mean(Depth)) %>% 
+  summarize(mean(mean_depth), sd(mean_depth))
+
+
+```
+
 

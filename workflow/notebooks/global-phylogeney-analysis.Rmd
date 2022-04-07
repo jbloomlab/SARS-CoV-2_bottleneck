@@ -117,6 +117,18 @@ as.treedata(tree_tibble)
 
 ```
 
+```{r GISAID Awknowlegements}
+
+gisaid.ids = tree_tibble$gisaid_epi_isl
+
+awknowlegement.df = gisaid_epi_df %>% 
+  select(strain, gisaid_epi_isl, originating_lab, submitting_lab, authors) %>% 
+  filter(gisaid_epi_isl %in% gisaid.ids)
+
+write_csv(awknowlegement.df, "../../config/gisaid_awknowlegements.csv")
+```
+
+
 I saved a list of the node #'s for the boat samples and the outlier for annotating on tree. 
 ```{r Annotated nodes}
 
