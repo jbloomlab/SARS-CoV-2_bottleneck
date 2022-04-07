@@ -1,4 +1,4 @@
-gisaid_strain,gisaid_accession,specimen_id,avg_ct,from_boat,sequenced_in_duplicate
+gisaid_strain_name,gisaid_accession,individual_sample_id,average_sample_Ct_value,individual_was_from_the_boat,individual_was_resequenced_for_paper
 USA/WA-UW-10027/2020,EPI_ISL_461450,10027,19.9,TRUE,TRUE
 USA/WA-UW-10028/2020,EPI_ISL_461451,10028,19.885,TRUE,TRUE
 USA/WA-UW-10029/2020,EPI_ISL_461452,10029,16.115,TRUE,TRUE
