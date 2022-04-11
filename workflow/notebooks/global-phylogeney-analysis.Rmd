@@ -68,7 +68,7 @@ tree = read.iqtree(tree.path)
 ```
 
 I rooted the tree using the Wuhan-1 reference sequence (NC_045512.2) as the outgroup.
-```{r Rooting}
+```{r Rooting and Collapse}
 
 # Name of the outgroup for rooting the tree
 root = "NC_045512.2"
@@ -111,9 +111,11 @@ external.metadata.df = external.metadata.df %>%
   mutate(boat = if_else(nextstrain_clade == "Boat", T, F))
 
 # Join the external metadata back with the tree
-tree_tibble = full_join(as_tibble(tree), external.metadata.df, by = c("label" = "node"))
+cutoff = 60
+tree_tibble = full_join(as_tibble(tree), external.metadata.df, by = c("label" = "node")) %>% 
+  mutate(branch.length = if_else(UFboot < cutoff & !is.na(UFboot), 0.0, branch.length))
 
-as.treedata(tree_tibble)
+tree_tibble
 
 ```
 
@@ -139,7 +141,7 @@ boat.nodes = tree_tibble %>%
   pull(node)
 
 # Outlier nodes
-outlier.node =tree_tibble %>% 
+outlier.node = tree_tibble %>% 
   filter(strain == "hCoV-19/USA/WA-UW-10136/2020") %>% 
   pull(node)
 
@@ -181,8 +183,10 @@ clades = c("Boat",
            "20F",
            "20G")
 
-# Plot the tree
-as.treedata(tree_tibble) %>% 
+
+
+tree_tibble %>% 
+  as.treedata() %>% 
   ggtree(size = 1.1, col = "darkgrey") + 
     geom_cladelabel(node=MRCA(tree_tibble, boat.nodes)$node, label="Boat Clade", col='darkred', offset = .000015, offset.text = .000015,  barsize = 1, fontsize = 5) +
     geom_cladelabel(node=outlier.node, label="WA-UW-10136", col='darkred',  offset = .00003) +
@@ -287,39 +291,39 @@ ggsave("../../results/figures/detailed-boat-phylogeny.svg", width = 22, height =
 
 
 ```{r All Boat, fig.align="center", fig.width=22, fig.height=12}
+
 # Phylogenetic Tree from IQtree
 all.boat.tree = read.iqtree("../../results/phylogeny/collapsed-all-boat-sequences.aligned.fa.treefile")
-
-# TODO: chang this to midpoint rooting 
-# collapsed.root = "10136"
-# collapsed.tree@phylo = root(collapsed.tree@phylo, outgroup = collapsed.root)
-all.boat.tree@phylo = midpoint.root(all.boat.tree@phylo)
 
 # These genomes are collpased from the original - add the number represented by each type. 
 twentysix.genomes = "10101"
 four.genomes = "10107"
   
-# Tree annotated with sequence count
-all.boat.tree.plotting = all.boat.tree %>% 
-  as.tibble() %>% 
+# Cuttoff for collapsing into polytomy
+cutoff = 60
+
+all.boat.tree = all.boat.tree %>% 
+  as_tibble() %>% 
+  mutate(branch.length = if_else(UFboot < cutoff & !is.na(UFboot), 0.0, branch.length)) %>% 
+  mutate(is.tip = if_else(label %in% all.boat.tree@phylo$tip.label, T, F)) %>%
+  as.treedata()
+
+# Midpoint rooting 
+all.boat.tree@phylo = midpoint.root(all.boat.tree@phylo)
+
+all.boat.tree = all.boat.tree %>% 
+  as_tibble() %>% 
   mutate(seq.count = case_when(
     label == twentysix.genomes ~ 26, 
     label == four.genomes ~ 4,
     TRUE ~ 1
   )) %>% 
-  mutate(is.tip = if_else(label %in% all.boat.tree@phylo$tip.label, T, F)) %>% 
   as.treedata()
 
-# Import the sequence annotations
-seq.annotations = read_csv("../../results/phylogeny/all-boat-substitutions-matrix.csv") %>% 
-  as.data.frame() 
-row.names(seq.annotations) = seq.annotations[,1]
-seq.annotations[,1] = NULL 
 
-# Plot the tree 
-plt = all.boat.tree.plotting %>% 
+plt = all.boat.tree %>% 
   ggtree(size = 1.25, col = "black", ladderize=T, right=T) %>%
-  rotate(rootnode(all.boat.tree.plotting)) +
+  rotate(rootnode(all.boat.tree)) +
     geom_tree(col = "darkgrey", size = 1) +
     geom_tippoint(aes(size = seq.count)) + 
     geom_treescale(x = 0, y = -0.5,  fontsize=8, linesize=1.3) + 
@@ -332,6 +336,11 @@ plt = all.boat.tree.plotting %>%
           legend.text=element_text(size=22),
           legend.key.size = unit(1.5, "cm")) 
 
+# Import the sequence annotations
+seq.annotations = read_csv("../../results/phylogeny/all-boat-substitutions-matrix.csv") %>% 
+  as.data.frame() 
+row.names(seq.annotations) = seq.annotations[,1]
+seq.annotations[,1] = NULL 
 
 gheatmap(plt, seq.annotations,
         colnames_angle=-90, width=.4, offset =.00003, font.size = 6) +
@@ -340,4 +349,8 @@ gheatmap(plt, seq.annotations,
 ggsave("../../results/figures/detailed-all-boat-phylogeny.png", width = 22, height = 12, dpi = 300)
 ggsave("../../results/figures/detailed-all-boat-phylogeny.svg", width = 22, height = 12)
 
-```  
+```
+
+
+
+
